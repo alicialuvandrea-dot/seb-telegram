@@ -1,0 +1,18 @@
+[Unit]
+Description=Seb Telegram Bot (Claude)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/seb-telegram
+ExecStart=/home/ubuntu/seb-telegram/venv/bin/python bot.py
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=120
+StartLimitBurst=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
