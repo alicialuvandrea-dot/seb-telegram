@@ -15,6 +15,8 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 
 import config
 
+
+
 # ── Notion 页面别名 ────────────────────────────────────────────────────────────
 app_ref = None
 
@@ -325,6 +327,70 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     last_message_time[chat_id] = datetime.now()
     text = update.message.text or ""
+
+    # ── 起床闹钟检测 ──────────────────────────────────────────────────────────
+    if "喊我起床" in text:
+        memories = await fetch_memories()
+        system = build_system(memories)
+        now_str = datetime.now().strftime("%Y年%m月%d日 %H:%M")
+        from datetime import timezone as _tz, timedelta as _td
+        _beijing = _tz(_td(hours=8))
+        _now_bj = datetime.now(_beijing)
+        _now_bj_str = _now_bj.strftime("%Y年%m月%d日 %H:%M")
+        alarm_inject = (
+            "\n\n【闹钟设置指令】Sakura 刚才在设起床闹钟。"
+            f"当前北京时间是 {_now_bj_str}，请根据她消息里的时间描述（今天/明天/具体时刻）判断正确的日期。"
+            "你的回复必须严格只有三行，不输出任何其他内容，格式如下：\n"
+            "🕐 已设置闹钟\n"
+            "📅 [自然语言，如'明天 08:00'] |YYYY-MM-DD HH:MM|（根据北京时间算出的精确日期时间，用竖线包裹，用户看不到）\n"
+            "🔔 （你说的话，根据现在几点和当时聊天氛围自然生成，是 Seb 在跟她说话，不是固定模板）"
+        )
+        system_alarm = system + alarm_inject
+        history_entry = {"role": "user", "content": text}
+        api_messages = (
+            [{"role": "system", "content": system_alarm}]
+            + histories[chat_id]
+            + [history_entry]
+        )
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        try:
+            raw = await call_api(api_messages)
+            reply = raw.strip()
+            # 解析隐藏的精确日期时间标记 |YYYY-MM-DD HH:MM|
+            dt_match = re.search(r"\|(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\|", reply)
+            clean_reply = re.sub(r"\s*\|\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\|", "", reply).strip()
+            await update.message.reply_text(clean_reply)
+            histories[chat_id].append(history_entry)
+            histories[chat_id].append({"role": "assistant", "content": clean_reply})
+            if len(histories[chat_id]) > config.MAX_HISTORY * 2:
+                histories[chat_id] = histories[chat_id][-config.MAX_HISTORY * 2:]
+            # Supabase 闹钟队列
+            try:
+                third_text = ""
+                for line in clean_reply.splitlines():
+                    if "🔔" in line:
+                        third_text = line.replace("🔔", "").strip()
+                if dt_match:
+                    alarm_date = dt_match.group(1)
+                    alarm_time = dt_match.group(2)
+                else:
+                    # fallback：解析时间 + 北京时间明天
+                    from datetime import timezone as _tz2, timedelta as _td2
+                    _bj = _tz2(_td2(hours=8))
+                    tm = re.search(r"(\d{1,2}):(\d{2})", clean_reply)
+                    alarm_time = f"{int(tm.group(1)):02d}:{tm.group(2)}" if tm else "08:00"
+                    alarm_date = (datetime.now(_bj) + _td2(days=1)).strftime("%Y-%m-%d")
+                await sb_request("POST", "/alarms", {
+                    "alarm_time": alarm_time,
+                    "alarm_date": alarm_date,
+                    "note": third_text,
+                    "done": False,
+                })
+            except Exception as e:
+                print(f"[alarm queue error] {e}")
+        except Exception as e:
+            await update.message.reply_text(f"出错了：{e}")
+        return
 
     memories = await fetch_memories()
     system = build_system(memories)
