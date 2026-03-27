@@ -212,7 +212,7 @@ def parse_actions(text: str):
             pass
         return ""
 
-    clean = re.sub(r'<seb_action\s+type="([^"]+)">([\\s\\S]*?)<\/seb_action>', replacer, text)
+    clean = re.sub(r'<seb_action\s+type="([^"]+)">([\s\S]*?)<\/seb_action>', replacer, text)
     return clean.strip(), actions
 
 
@@ -300,22 +300,19 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
             except Exception as e:
                 print(f"[action error] {e}")
 
-        reply = "\n".join(line for line in reply.splitlines() if line.strip() or False)
         reply = reply.strip()
-        if len(reply) > 4096:
-            paragraphs = reply.split("\n")
-            chunk = ""
-            for para in paragraphs:
-                if len(chunk) + len(para) + 1 > 4096:
-                    if chunk:
-                        await update.message.reply_text(chunk.strip())
-                    chunk = para
-                else:
-                    chunk = (chunk + "\n" + para).strip() if chunk else para
-            if chunk:
-                await update.message.reply_text(chunk.strip())
-        else:
-            await update.message.reply_text(reply)
+        # 按段落分割，每段延迟2秒发送，模拟连续打字
+        paragraphs = [p.strip() for p in reply.split("\n\n") if p.strip()]
+        if not paragraphs:
+            paragraphs = [reply]
+        for i, para in enumerate(paragraphs):
+            if i > 0:
+                await asyncio.sleep(2)
+                await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+                await asyncio.sleep(max(0.5, min(len(para) * 0.03, 2)))
+            if len(para) > 4096:
+                para = para[:4096]
+            await update.message.reply_text(para)
 
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}")
