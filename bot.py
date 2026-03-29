@@ -441,7 +441,7 @@ async def generate_proactive_message(chat_id: int, hours_since: float) -> str:
         "现在由你主动发一条消息给她，根据你们最近的对话自然地说点什么。"
         "像平时发消息一样，不要提「你很久没联系我」，不要解释为什么主动找她，就正常开口。"
     )
-    recent = histories[chat_id][-10:] if histories[chat_id] else []
+    recent = histories[chat_id][-4:] if histories[chat_id] else []
     api_messages = [{"role": "system", "content": system}] + recent
     return await call_api(api_messages)
 
@@ -553,6 +553,21 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("在。🌸")
 
 
+# ── /clear 指令 ────────────────────────────────────────────────────────────────
+async def handle_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    histories[chat_id] = []
+    await update.message.reply_text("上下文已清空。")
+
+
+# ── /reset 指令 ────────────────────────────────────────────────────────────────
+async def handle_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    histories[chat_id] = histories[chat_id][-10:]
+    remaining = len(histories[chat_id]) // 2
+    await update.message.reply_text(f"已保留最近 {remaining} 轮对话。")
+
+
 # ── 主入口 ─────────────────────────────────────────────────────────────────────
 async def error_handler(update, context):
     if isinstance(context.error, Conflict):
@@ -569,6 +584,8 @@ def main():
     app = Application.builder().token(config.TELEGRAM_TOKEN).post_init(post_init).build()
 
     app.add_handler(CommandHandler("start", handle_start))
+    app.add_handler(CommandHandler("clear", handle_clear))
+    app.add_handler(CommandHandler("reset", handle_reset))
     app.add_handler(CommandHandler("nr", handle_nr))
     app.add_handler(CommandHandler("nw", handle_nw))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
