@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 mock_config = MagicMock()
 mock_config.TAVILY_API_KEY = "test-key"
 mock_config.SEARCH_MAX_RESULTS = 3
+mock_config.MAX_HISTORY = 20
 sys.modules["config"] = mock_config
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -66,3 +67,32 @@ async def test_web_search_empty_results():
 
     assert "【搜索结果：无结果查询】" in result
     assert "未找到相关结果" in result
+
+
+@pytest.mark.asyncio
+async def test_keyword_trigger_injects_search_results():
+    """关键词触发时，search_results 应被注入 system prompt"""
+    injected_systems = []
+
+    async def fake_call_api(messages):
+        injected_systems.append(messages[0]["content"])
+        return "搜到了，是这样的"
+
+    mock_search_result = "【搜索结果：明天天气】\n1. 晴 | weather.com\n   明天晴转多云"
+
+    with patch("bot.call_api", side_effect=fake_call_api), \
+         patch("bot.web_search", new=AsyncMock(return_value=mock_search_result)), \
+         patch("bot.fetch_memories", new=AsyncMock(return_value=[])):
+
+        from bot import handle_message
+        update = MagicMock()
+        update.effective_chat.id = 12345
+        update.message.text = "查查明天天气"
+        update.message.reply_text = AsyncMock()
+        context = MagicMock()
+        context.bot.send_chat_action = AsyncMock()
+
+        await handle_message(update, context)
+
+    assert any("搜索结果" in s for s in injected_systems), \
+        "搜索结果未注入 system prompt"

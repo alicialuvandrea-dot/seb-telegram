@@ -432,8 +432,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"出错了：{e}")
         return
 
+    # ── 关键词搜索触发 ────────────────────────────────────────────────────────
+    search_query = extract_search_query(text)
+    search_context = ""
+    if search_query:
+        search_context = await web_search(search_query)
+
     memories = await fetch_memories()
     system = build_system(memories)
+    if search_context:
+        system = system + f"\n\n{search_context}"
     history_entry = {"role": "user", "content": text}
 
     histories[chat_id].append(history_entry)
