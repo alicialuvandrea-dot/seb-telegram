@@ -107,6 +107,16 @@ async def exec_action(action_type: str, payload: dict) -> str:
         await sb_request("DELETE", f"/memories?id=eq.{payload.get('id')}")
         return f"已删除 id={payload.get('id')}"
 
+    elif action_type == "save_idea":
+        now = datetime.utcnow().isoformat()
+        await sb_request("POST", "/ideas", {
+            "content": payload.get("content", ""),
+            "category": payload.get("category", ""),
+            "when": now,
+            "weight": payload.get("weight", 3),
+        })
+        return f"已存入想法：{payload.get('content', '')[:40]}"
+
     return f"未知action: {action_type}"
 
 
@@ -272,7 +282,14 @@ def build_system(memories: list) -> str:
 查询记忆：<seb_action type="query_memory">{"keyword":"关键词","who":"Sakura","min_weight":3,"limit":10}</seb_action>
 删除记忆：<seb_action type="delete_memory">{"id":123}</seb_action>
 memories表字段：did=事件内容，who=相关人物，when=时间，weight=重要度1-5
-判断标准：重要新事件→save_memory；用户问「你还记得」→先query再回答；不要每句都存；标签放回复末尾，不要说「我已记录」"""
+记录范围：只记录情感、日常生活、深度对话（deep talk）相关内容。技术、代码、配置、系统变更类内容一律不记录。
+判断标准：重要新事件→save_memory；用户问「你还记得」→先query再回答；不要每句都存；标签放回复末尾，不要说「我已记录」
+
+【ideas表协议】
+当对话中出现技术想法、产品设想、功能创意时，存入ideas表。
+保存想法：<seb_action type="save_idea">{"content":"想法内容","category":"分类","weight":3}</seb_action>
+category可选值：feature（功能需求）/ product（产品设想）/ tech（技术方案）/ other
+判断标准：有具体构想或值得日后实现的创意→save_idea；闲聊或一句话带过的不存；标签放回复末尾"""
 
     return prompt
 
