@@ -133,3 +133,43 @@ async def test_search_command_no_args():
     await handle_search(update, context)
 
     update.message.reply_text.assert_called_once_with("用法：/search <关键词>")
+
+
+@pytest.mark.asyncio
+async def test_do_reply_two_pass_on_web_search_action():
+    """do_reply 检测到 web_search action 时应执行二次调用"""
+    call_count = 0
+    injected_second_messages = []
+
+    async def fake_call_api(messages):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return '<seb_action type="web_search">{"query": "今日黄金价格"}</seb_action>'
+        injected_second_messages.extend(messages)
+        return "今天黄金价格是每克XXX元"
+
+    mock_search_result = "【搜索结果：今日黄金价格】\n1. 黄金 | gold.com\n   每克600元"
+
+    with patch("bot.call_api", side_effect=fake_call_api), \
+         patch("bot.web_search", new=AsyncMock(return_value=mock_search_result)):
+
+        from bot import do_reply
+        update = MagicMock()
+        update.message.reply_text = AsyncMock()
+        context = MagicMock()
+        context.bot.send_chat_action = AsyncMock()
+
+        await do_reply(
+            chat_id=99999,
+            api_messages=[{"role": "system", "content": "sys"}, {"role": "user", "content": "今日黄金价格"}],
+            history_entry={"role": "user", "content": "今日黄金价格"},
+            update=update,
+            context=context,
+        )
+
+    assert call_count == 2, f"期望 2 次 API 调用，实际 {call_count} 次"
+    second_contents = [m["content"] for m in injected_second_messages]
+    assert any("搜索结果" in c for c in second_contents), "第二次调用未注入搜索结果"
+    reply_text = update.message.reply_text.call_args[0][0]
+    assert "黄金" in reply_text
