@@ -7,6 +7,7 @@ from datetime import datetime
 from collections import defaultdict
 
 import httpx
+from tavily import AsyncTavilyClient
 from aiohttp import web
 from notion_client import AsyncClient as NotionClient
 from telegram import Update
@@ -26,6 +27,22 @@ def extract_search_query(text: str) -> str | None:
             query = text.replace(kw, "", 1).strip()
             return query if query else text
     return None
+
+
+async def web_search(query: str) -> str:
+    client = AsyncTavilyClient(api_key=config.TAVILY_API_KEY)
+    try:
+        response = await client.search(query, max_results=config.SEARCH_MAX_RESULTS)
+        results = response.get("results", [])
+        if not results:
+            return f"【搜索结果：{query}】\n未找到相关结果"
+        lines = [f"【搜索结果：{query}】"]
+        for i, r in enumerate(results, 1):
+            lines.append(f"{i}. {r['title']} | {r['url']}")
+            lines.append(f"   {r.get('content', '')[:300]}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"【搜索失败：{e}】"
 
 
 # ── Notion 页面别名 ────────────────────────────────────────────────────────────
