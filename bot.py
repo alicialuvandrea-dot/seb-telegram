@@ -17,6 +17,17 @@ import config
 
 
 
+SEARCH_KEYWORDS = ["搜一下", "查一下", "帮我查", "查查", "找一下"]
+
+
+def extract_search_query(text: str) -> str | None:
+    for kw in SEARCH_KEYWORDS:
+        if kw in text:
+            query = text.replace(kw, "", 1).strip()
+            return query if query else text
+    return None
+
+
 # ── Notion 页面别名 ────────────────────────────────────────────────────────────
 app_ref = None
 
