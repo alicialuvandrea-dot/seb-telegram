@@ -238,6 +238,26 @@ async def handle_nw(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"写入失败：{e}")
 
 
+# ── /search 指令 ───────────────────────────────────────────────────────────────
+async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("用法：/search <关键词>")
+        return
+    query = " ".join(context.args)
+    chat_id = update.effective_chat.id
+    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+    search_context = await web_search(query)
+    memories = await fetch_memories()
+    system = build_system(memories) + f"\n\n{search_context}"
+    history_entry = {"role": "user", "content": f"/search {query}"}
+    api_messages = (
+        [{"role": "system", "content": system}]
+        + histories[chat_id]
+        + [history_entry]
+    )
+    await do_reply(chat_id, api_messages, history_entry, update, context)
+
+
 # ── seb_action 解析 ────────────────────────────────────────────────────────────
 def parse_actions(text: str):
     actions = []
@@ -602,6 +622,7 @@ def main():
     app.add_handler(CommandHandler("reset", handle_reset))
     app.add_handler(CommandHandler("nr", handle_nr))
     app.add_handler(CommandHandler("nw", handle_nw))
+    app.add_handler(CommandHandler("search", handle_search))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 

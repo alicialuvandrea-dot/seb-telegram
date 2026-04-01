@@ -96,3 +96,40 @@ async def test_keyword_trigger_injects_search_results():
 
     assert any("搜索结果" in s for s in injected_systems), \
         "搜索结果未注入 system prompt"
+
+
+@pytest.mark.asyncio
+async def test_search_command_calls_web_search():
+    mock_search_result = "【搜索结果：崩铁新角色】\n1. 结果 | url\n   内容"
+
+    async def fake_call_api(messages):
+        return "根据搜索结果，崩铁新角色是..."
+
+    with patch("bot.call_api", side_effect=fake_call_api), \
+         patch("bot.web_search", new=AsyncMock(return_value=mock_search_result)), \
+         patch("bot.fetch_memories", new=AsyncMock(return_value=[])):
+
+        from bot import handle_search
+        update = MagicMock()
+        update.effective_chat.id = 12345
+        update.message.reply_text = AsyncMock()
+        context = MagicMock()
+        context.args = ["崩铁", "新角色"]
+        context.bot.send_chat_action = AsyncMock()
+
+        await handle_search(update, context)
+
+    update.message.reply_text.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_search_command_no_args():
+    from bot import handle_search
+    update = MagicMock()
+    update.message.reply_text = AsyncMock()
+    context = MagicMock()
+    context.args = []
+
+    await handle_search(update, context)
+
+    update.message.reply_text.assert_called_once_with("用法：/search <关键词>")
