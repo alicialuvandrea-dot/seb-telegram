@@ -18,5 +18,5 @@ MAX_TOKENS      = 4096
 NOTION_TOKEN    = "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"
 PROACTIVE_HOURS = 5
 
-TAVILY_API_KEY  = "tvly-placeholder"
+TAVILY_API_KEY     = "tvly-placeholder"
 SEARCH_MAX_RESULTS = 5
