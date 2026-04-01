@@ -1,6 +1,8 @@
 import re
 import json
 import sys
+import os
+import uuid
 import base64
 import asyncio
 from datetime import datetime
@@ -499,27 +501,109 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     photo = update.message.photo[-1]
     tg_file = await context.bot.get_file(photo.file_id)
-    photo_bytes = await tg_file.download_as_bytearray()
-    b64 = base64.b64encode(bytes(photo_bytes)).decode()
+    photo_bytes = bytes(await tg_file.download_as_bytearray())
+    b64 = base64.b64encode(photo_bytes).decode()
 
-    history_text = f"[图片]{(' ' + caption) if caption else ''}"
-    history_entry = {"role": "user", "content": history_text}
-
-    api_content = [
-        {"type": "text", "text": caption if caption else "（请描述图片内容并回应）"},
-        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-    ]
-
+    history_entry = {"role": "user", "content": f"[图片]{(' ' + caption) if caption else ''}"}
     memories = await fetch_memories()
     system = build_system(memories)
 
-    api_messages = (
-        [{"role": "system", "content": system}]
-        + histories[chat_id]
-        + [{"role": "user", "content": api_content}]
-    )
+    # 上传 imghost，Grok 需要公网 URL 才能处理图片
+    filename, img_url = imghost_save(photo_bytes)
+    try:
+        try:
+            is_nsfw = await classify_nsfw(img_url)
+        except Exception as e:
+            print(f"[grok classify error] {e}")
+            is_nsfw = False
+
+        if not is_nsfw:
+            # 非 NSFW：Claude 直接看 base64
+            api_content = [
+                {"type": "text", "text": caption if caption else "（请描述图片内容并回应）"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+            ]
+            api_messages = (
+                [{"role": "system", "content": system}]
+                + histories[chat_id]
+                + [{"role": "user", "content": api_content}]
+            )
+        else:
+            # NSFW：Grok 详细描述，Claude 根据描述回复
+            try:
+                description = await grok_describe(img_url, caption)
+            except Exception as e:
+                print(f"[grok describe error] {e}")
+                description = "（图片描述获取失败）"
+            user_text = (
+                f"{'她说：' + caption + '。' if caption else ''}"
+                f"（图片内容：{description}）"
+            )
+            api_messages = (
+                [{"role": "system", "content": system}]
+                + histories[chat_id]
+                + [{"role": "user", "content": user_text}]
+            )
+    finally:
+        imghost_delete(filename)
 
     await do_reply(chat_id, api_messages, history_entry, update, context)
+
+
+# ── Imghost + Grok 图片处理 ────────────────────────────────────────────────────
+
+def imghost_save(photo_bytes: bytes) -> tuple[str, str]:
+    """写入 imghost，返回 (filename, public_url)。"""
+    filename = f"{uuid.uuid4().hex}.jpg"
+    with open(os.path.join(config.IMGHOST_DIR, filename), "wb") as f:
+        f.write(photo_bytes)
+    return filename, f"{config.IMGHOST_URL}/{filename}"
+
+
+def imghost_delete(filename: str) -> None:
+    try:
+        os.remove(os.path.join(config.IMGHOST_DIR, filename))
+    except Exception:
+        pass
+
+
+async def classify_nsfw(img_url: str) -> bool:
+    """用 Grok 判断图片是否 NSFW，返回 True 表示 NSFW。"""
+    async with httpx.AsyncClient(timeout=30) as http:
+        res = await http.post(
+            f"{config.GROK_BASE}/chat/completions",
+            headers={"Authorization": f"Bearer {config.GROK_KEY}"},
+            json={
+                "model": config.GROK_MODEL,
+                "messages": [{"role": "user", "content": [
+                    {"type": "text", "text": "Does this image contain NSFW content such as nudity or explicit sexual material? Reply with YES or NO only."},
+                    {"type": "image_url", "image_url": {"url": img_url}},
+                ]}],
+                "max_tokens": 5,
+                "temperature": 0,
+            }
+        )
+        answer = res.json()["choices"][0]["message"]["content"].strip().upper()
+        return "YES" in answer
+
+
+async def grok_describe(img_url: str, caption: str) -> str:
+    """用 Grok 详细描述 NSFW 图片内容。"""
+    prompt = caption if caption else "请详细描述图片内容，包括人物、场景、动作、细节"
+    async with httpx.AsyncClient(timeout=60) as http:
+        res = await http.post(
+            f"{config.GROK_BASE}/chat/completions",
+            headers={"Authorization": f"Bearer {config.GROK_KEY}"},
+            json={
+                "model": config.GROK_MODEL,
+                "messages": [{"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": img_url}},
+                ]}],
+                "max_tokens": config.GROK_MAX_TOKENS,
+            }
+        )
+        return res.json()["choices"][0]["message"]["content"]
 
 
 # ── 主动消息 ───────────────────────────────────────────────────────────────────

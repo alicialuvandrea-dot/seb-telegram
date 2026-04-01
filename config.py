@@ -20,3 +20,10 @@ PROACTIVE_HOURS = 5
 
 TAVILY_API_KEY     = "tvly-placeholder"
 SEARCH_MAX_RESULTS = 5
+
+GROK_KEY        = "sk-jbvWoGZoz0pWVqmVAtKxVoG0PYz3g4VkGn4iQwB2UxKP5BNj"
+GROK_BASE       = "https://api.dzzi.ai/v1"
+GROK_MODEL      = "x-ai/grok-4.1-fast"
+GROK_MAX_TOKENS = 1024
+IMGHOST_DIR     = "/home/ubuntu/imghost/files"
+IMGHOST_URL     = "https://imghost.sebsakura.top"
