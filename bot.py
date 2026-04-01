@@ -47,7 +47,6 @@ async def call_api(messages: list) -> str:
         return data["choices"][0]["message"]["content"] or ""
 
 histories: dict[int, list] = defaultdict(list)
-last_message_time: dict[int, datetime] = {}
 
 
 # ── Supabase ───────────────────────────────────────────────────────────────────
@@ -322,7 +321,6 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
 # ── 消息处理 ───────────────────────────────────────────────────────────────────
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    last_message_time[chat_id] = datetime.now()
     text = update.message.text or ""
 
     # ── 起床闹钟检测 ──────────────────────────────────────────────────────────
@@ -404,7 +402,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    last_message_time[chat_id] = datetime.now()
     caption = update.message.caption or ""
 
     photo = update.message.photo[-1]
@@ -433,40 +430,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ── 主动消息 ───────────────────────────────────────────────────────────────────
-async def generate_proactive_message(chat_id: int, hours_since: float) -> str:
-    memories = await fetch_memories()
-    system = build_system(memories)
-    system += (
-        f"\n\n【主动联系模式】Sakura已经约{hours_since:.0f}小时没有发消息了。"
-        "现在由你主动发一条消息给她，根据你们最近的对话自然地说点什么。"
-        "像平时发消息一样，不要提「你很久没联系我」，不要解释为什么主动找她，就正常开口。"
-    )
-    recent = histories[chat_id][-4:] if histories[chat_id] else []
-    api_messages = [{"role": "system", "content": system}] + recent
-    return await call_api(api_messages)
-
-
-async def proactive_loop(app):
-    while True:
-        await asyncio.sleep(900)
-        now = datetime.now()
-        for chat_id, last_time in list(last_message_time.items()):
-            diff_hours = (now - last_time).total_seconds() / 3600
-            if diff_hours >= config.PROACTIVE_HOURS:
-                try:
-                    raw = await generate_proactive_message(chat_id, diff_hours)
-                    clean, actions = parse_actions(raw)
-                    reply = (clean if actions else raw).strip()
-                    if reply:
-                        await app.bot.send_message(chat_id=chat_id, text=reply)
-                    last_message_time[chat_id] = now
-                    for action in actions:
-                        try:
-                            await exec_action(action["type"], action["payload"])
-                        except Exception as e:
-                            print(f"[proactive action error] {e}")
-                except Exception as e:
-                    print(f"[proactive error] chat_id={chat_id}: {e}")
 
 
 # ── sentinel HTTP ──────────────────────────────────────────────────────────────
@@ -519,7 +482,6 @@ async def handle_sentinel(request):
         if reply.upper() != 'NO' and reply and app_ref:
             await app_ref.bot.send_message(chat_id=chat_id, text=reply)
             histories[chat_id].append({'role': 'assistant', 'content': reply})
-            last_message_time[chat_id] = datetime.now()
         for action in actions:
             try:
                 await exec_action(action['type'], action['payload'])
@@ -544,7 +506,6 @@ async def start_sentinel_server():
 async def post_init(app):
     global app_ref
     app_ref = app
-    asyncio.create_task(proactive_loop(app))
     asyncio.create_task(start_sentinel_server())
 
 
