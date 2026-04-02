@@ -956,16 +956,18 @@ def main():
 
     app = Application.builder().token(config.TELEGRAM_TOKEN).post_init(post_init).build()
 
-    app.add_handler(CommandHandler("start", handle_start))
-    app.add_handler(CommandHandler("clear", handle_clear))
-    app.add_handler(CommandHandler("reset", handle_reset))
-    app.add_handler(CommandHandler("nr", handle_nr))
-    app.add_handler(CommandHandler("nw", handle_nw))
-    app.add_handler(CommandHandler("search", handle_search))
-    app.add_handler(CommandHandler("model", handle_model))
+    owner_filter = filters.Chat(chat_id=int(config.SAKURA_CHAT_ID))
+
+    app.add_handler(CommandHandler("start", handle_start, filters=owner_filter))
+    app.add_handler(CommandHandler("clear", handle_clear, filters=owner_filter))
+    app.add_handler(CommandHandler("reset", handle_reset, filters=owner_filter))
+    app.add_handler(CommandHandler("nr", handle_nr, filters=owner_filter))
+    app.add_handler(CommandHandler("nw", handle_nw, filters=owner_filter))
+    app.add_handler(CommandHandler("search", handle_search, filters=owner_filter))
+    app.add_handler(CommandHandler("model", handle_model, filters=owner_filter))
     app.add_handler(CallbackQueryHandler(handle_model_callback, pattern=r"^model:"))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(owner_filter & filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(owner_filter & filters.PHOTO, handle_photo))
 
     app.add_error_handler(error_handler)
     print("Seb Bot 已启动，等待消息")
