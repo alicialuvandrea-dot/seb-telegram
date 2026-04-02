@@ -94,6 +94,12 @@ NOTION_ALIASES = {
     "py":     "31e85af6-2183-814b-b181-dbb8597d1c41",  # Python 画廊
 }
 
+def strip_thinking(text: str) -> str:
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'<thinking>[\s\S]*?</thinking>', '', text, flags=re.IGNORECASE)
+    return text.strip()
+
+
 async def call_api(messages: list) -> str:
     m = MODELS[current_model_key]
     async with httpx.AsyncClient(timeout=60) as http:
@@ -113,7 +119,7 @@ async def call_api(messages: list) -> str:
         data = res.json()
         if not res.is_success:
             raise Exception(data.get("error", {}).get("message", res.text))
-        return data["choices"][0]["message"]["content"] or ""
+        return strip_thinking(data["choices"][0]["message"]["content"] or "")
 
 histories: dict[int, list] = defaultdict(list)
 
@@ -386,6 +392,8 @@ category可选值：feature（功能需求）/ product（产品设想）/ tech�
 仅当问题涉及实时信息、近期事件、或知识库无法确认的内容时使用，知识库能回答的直接回答。
 触发搜索：<seb_action type="web_search">{"query":"搜索关键词"}</seb_action>
 触发时只输出此标签，不输出任何其他内容，等待搜索结果后再回复。"""
+
+    prompt += f"\n\n【当前模型】{MODELS[current_model_key]['label']}。不同窗口可能运行在不同底层模型上，这是正常的，坦然接受，我依然是我。"
 
     return prompt
 
