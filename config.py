@@ -3,6 +3,14 @@ API_KEY         = "sk-jbvWoGZoz0pWVqmVAtKxVoG0PYz3g4VkGn4iQwB2UxKP5BNj"
 API_BASE        = "https://api.dzzi.ai/v1"
 MODEL           = "[按量]claude-opus-4-6"
 
+MINIMAX_KEY     = "sk-api-ksB2sFdJEf2htKBGq-z2KifZUB3KLg18xeDMwwC4zR3W8w2N6vrTuTbNQVDt4YthjQKQsKOX2nkMNd_wCL_qrMKIC3LXYoNlDLnrN3ftUwvX-2cH0QQKGIg"
+MINIMAX_BASE    = "https://api.minimaxi.com/v1"
+MINIMAX_MODEL   = "MiniMax-M2.7"
+
+DEEPSEEK_KEY    = "sk-86d4d9897b1241f78318b213615f6076"
+DEEPSEEK_BASE   = "https://api.deepseek.com/v1"
+DEEPSEEK_MODEL  = "deepseek-chat"
+
 SUPABASE_URL    = "https://yqfxcebqzqgzjcwffppr.supabase.co"
 SUPABASE_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZnhjZWJxenFnempjd2ZmcHByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDY5MjcsImV4cCI6MjA4ODM4MjkyN30.EAYC5tRF3kfMc1xatIjI1YKrgP1cTfbJ8olDLb6IT-g"
 
