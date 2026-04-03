@@ -12,7 +12,7 @@ DEEPSEEK_BASE   = "https://api.deepseek.com/v1"
 DEEPSEEK_MODEL  = "deepseek-chat"
 
 SUPABASE_URL    = "https://yqfxcebqzqgzjcwffppr.supabase.co"
-SUPABASE_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZnhjZWJxenFnempjd2ZmcHByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDY5MjcsImV4cCI6MjA4ODM4MjkyN30.EAYC5tRF3kfMc1xatIjI1YKrgP1cTfbJ8olDLb6IT-g"
+SUPABASE_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZnhjZWJxenFnempjd2ZmcHByIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjgwNjkyNywiZXhwIjoyMDg4MzgyOTI3fQ.WNo0VR0xD2rwS9aMDg9SguZjSVV7_nVxwXAZQJrFV-Y"
 
 SAKURA_CHAT_ID  = "5138140796"
 SENTINEL_TOKEN  = "seb-sentinel-2026"
