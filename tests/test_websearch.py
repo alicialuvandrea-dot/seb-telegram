@@ -82,7 +82,8 @@ async def test_keyword_trigger_injects_search_results():
 
     with patch("bot.call_api", side_effect=fake_call_api), \
          patch("bot.web_search", new=AsyncMock(return_value=mock_search_result)), \
-         patch("bot.fetch_memories", new=AsyncMock(return_value=[])):
+         patch("bot.fetch_memories", new=AsyncMock(return_value=[])), \
+         patch("bot.fetch_plans", new=AsyncMock(return_value=[])):
 
         from bot import handle_message
         update = MagicMock()
@@ -107,7 +108,8 @@ async def test_search_command_calls_web_search():
 
     with patch("bot.call_api", side_effect=fake_call_api), \
          patch("bot.web_search", new=AsyncMock(return_value=mock_search_result)), \
-         patch("bot.fetch_memories", new=AsyncMock(return_value=[])):
+         patch("bot.fetch_memories", new=AsyncMock(return_value=[])), \
+         patch("bot.fetch_plans", new=AsyncMock(return_value=[])):
 
         from bot import handle_search
         update = MagicMock()
