@@ -74,7 +74,7 @@ async def test_keyword_trigger_injects_search_results():
     """关键词触发时，search_results 应被注入 system prompt"""
     injected_systems = []
 
-    async def fake_call_api(messages):
+    async def fake_call_api(messages, model_key="haiku"):
         injected_systems.append(messages[0]["content"])
         return "搜到了，是这样的"
 
@@ -103,7 +103,7 @@ async def test_keyword_trigger_injects_search_results():
 async def test_search_command_calls_web_search():
     mock_search_result = "【搜索结果：崩铁新角色】\n1. 结果 | url\n   内容"
 
-    async def fake_call_api(messages):
+    async def fake_call_api(messages, model_key="haiku"):
         return "根据搜索结果，崩铁新角色是..."
 
     with patch("bot.call_api", side_effect=fake_call_api), \
@@ -143,7 +143,7 @@ async def test_do_reply_two_pass_on_web_search_action():
     call_count = 0
     injected_second_messages = []
 
-    async def fake_call_api(messages):
+    async def fake_call_api(messages, model_key="haiku"):
         nonlocal call_count
         call_count += 1
         if call_count == 1:

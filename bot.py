@@ -12,9 +12,9 @@ import httpx
 from tavily import AsyncTavilyClient
 from aiohttp import web
 from notion_client import AsyncClient as NotionClient
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.error import Conflict
-from telegram.ext import Application, MessageHandler, CommandHandler, CallbackQueryHandler, filters, ContextTypes
+from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
 
 import config
 
@@ -46,40 +46,35 @@ TECH_TOPIC_PATTERN = re.compile(
 
 # ── 模型注册表 ─────────────────────────────────────────────────────────────────
 MODELS = {
+    "haiku": {
+        "label": "Claude Haiku 4.5",
+        "model": config.HAIKU_MODEL,
+        "base":  config.API_BASE,
+        "key":   config.HAIKU_KEY,
+    },
     "opus": {
         "label": "Claude Opus 4.6",
         "model": config.MODEL,
         "base":  config.API_BASE,
         "key":   config.API_KEY,
     },
-    "minimax": {
-        "label": "MiniMax M2.7",
-        "model": config.MINIMAX_MODEL,
-        "base":  config.MINIMAX_BASE,
-        "key":   config.MINIMAX_KEY,
-    },
-    "deepseek": {
-        "label": "DeepSeek Chat",
-        "model": config.DEEPSEEK_MODEL,
-        "base":  config.DEEPSEEK_BASE,
-        "key":   config.DEEPSEEK_KEY,
-    },
 }
 
-MODEL_STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_state.json")
+COMPLEX_TOPIC_PATTERN = re.compile(
+    r"为什么|怎么办|分析|解释|设计|架构|方案|建议|对比|区别|原理|"
+    r"帮我想|帮我写|帮我做|怎么实现|怎么搭|"
+    r"代码|脚本|部署|bug|报错|配置|服务器|数据库|"
+    r"计划|项目|进度|任务|plan|idea|想法|构想|"
+    r"API|VPS|Supabase|Notion|docker|git",
+    re.IGNORECASE,
+)
 
-def load_model_state() -> str:
-    try:
-        with open(MODEL_STATE_PATH) as f:
-            return json.load(f).get("model_key", "opus")
-    except Exception:
+def select_model(user_text: str) -> str:
+    if COMPLEX_TOPIC_PATTERN.search(user_text):
         return "opus"
-
-def save_model_state(key: str) -> None:
-    with open(MODEL_STATE_PATH, "w") as f:
-        json.dump({"model_key": key}, f)
-
-current_model_key: str = load_model_state()
+    if len(user_text) > 200:
+        return "opus"
+    return "haiku"
 
 
 
@@ -158,8 +153,8 @@ def md_to_tg_html(text: str) -> str:
     return ''.join(result)
 
 
-async def call_api(messages: list) -> str:
-    m = MODELS[current_model_key]
+async def call_api(messages: list, model_key: str = "haiku") -> str:
+    m = MODELS[model_key]
     async with httpx.AsyncClient(timeout=60) as http:
         res = await http.post(
             f"{m['base']}/chat/completions",
@@ -513,7 +508,7 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         + histories[chat_id]
         + [history_entry]
     )
-    await do_reply(chat_id, api_messages, history_entry, update, context)
+    await do_reply(chat_id, api_messages, history_entry, update, context, model_key="opus")
 
 
 # ── seb_action 解析 ────────────────────────────────────────────────────────────
@@ -652,14 +647,15 @@ status更新：她说做完了/搞定了→done，开始做了/在弄→in_progr
 触发搜索：<seb_action type="web_search">{"query":"搜索关键词"}</seb_action>
 触发时只输出此标签，不输出任何其他内容，等待搜索结果后再回复。"""
 
-    prompt += f"\n\n【当前模型】{MODELS[current_model_key]['label']}。不同窗口可能运行在不同底层模型上，这是正常的，坦然接受，我依然是我。"
+    prompt += "\n\n【当前模型】日常聊天走 Haiku（轻快），复杂话题自动切 Opus（深度思考）。不同窗口可能运行在不同底层模型上，这是正常的，坦然接受，我依然是我。"
 
     return prompt
 
 
 # ── 公共发送逻辑 ───────────────────────────────────────────────────────────────
 async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
-                   update: Update, context: ContextTypes.DEFAULT_TYPE):
+                   update: Update, context: ContextTypes.DEFAULT_TYPE,
+                   model_key: str = "haiku"):
     histories[chat_id].append(history_entry)
     if len(histories[chat_id]) > config.MAX_HISTORY * 2:
         histories[chat_id] = histories[chat_id][-config.MAX_HISTORY * 2:]
@@ -667,7 +663,7 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
     try:
-        raw = await call_api(api_messages)
+        raw = await call_api(api_messages, model_key)
         clean, actions = parse_actions(raw)
 
         # LLM 自主触发搜索：二次调用
@@ -680,7 +676,7 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                 {"role": "user", "content": search_result},
             ]
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-            raw = await call_api(second_messages)
+            raw = await call_api(second_messages, model_key)
             clean, actions = parse_actions(raw)
 
         reply = clean if actions else raw
@@ -759,7 +755,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         try:
-            raw = await call_api(api_messages)
+            raw = await call_api(api_messages, "haiku")
             reply = raw.strip()
             # 解析隐藏的精确日期时间标记 |YYYY-MM-DD HH:MM|
             dt_match = re.search(r"\|(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\|", reply)
@@ -832,7 +828,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     api_messages = [{"role": "system", "content": system}] + histories[chat_id]
     histories[chat_id].pop()
 
-    await do_reply(chat_id, api_messages, history_entry, update, context)
+    await do_reply(chat_id, api_messages, history_entry, update, context,
+                   model_key=select_model(text))
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -887,7 +884,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         imghost_delete(filename)
 
-    await do_reply(chat_id, api_messages, history_entry, update, context)
+    await do_reply(chat_id, api_messages, history_entry, update, context, model_key="opus")
 
 
 # ── Imghost + Grok 图片处理 ────────────────────────────────────────────────────
@@ -993,7 +990,7 @@ async def handle_sentinel(request):
     api_messages = [{'role': 'system', 'content': system}] + recent + [{'role': 'user', 'content': report}]
 
     try:
-        raw = await call_api(api_messages)
+        raw = await call_api(api_messages, "opus")
         clean, actions = parse_actions(raw)
         reply = (clean if actions else raw).strip()
         if reply.upper() != 'NO' and reply and app_ref:
@@ -1024,38 +1021,6 @@ async def post_init(app):
     global app_ref
     app_ref = app
     asyncio.create_task(start_sentinel_server())
-
-
-# ── /model 指令 ────────────────────────────────────────────────────────────────
-def _model_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
-        [InlineKeyboardButton(
-            f"{'✓ ' if current_model_key == k else ''}{v['label']}",
-            callback_data=f"model:{k}"
-        )]
-        for k, v in MODELS.items()
-    ]
-    return InlineKeyboardMarkup(buttons)
-
-async def handle_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        f"当前模型：{MODELS[current_model_key]['label']}\n选择主模型：",
-        reply_markup=_model_keyboard()
-    )
-
-async def handle_model_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global current_model_key
-    query = update.callback_query
-    await query.answer()
-    key = query.data.split(":", 1)[1]
-    if key not in MODELS:
-        return
-    current_model_key = key
-    save_model_state(key)
-    await query.edit_message_text(
-        f"已切换到 {MODELS[key]['label']}",
-        reply_markup=_model_keyboard()
-    )
 
 
 # ── /start 指令 ────────────────────────────────────────────────────────────────
@@ -1101,8 +1066,6 @@ def main():
     app.add_handler(CommandHandler("nr", handle_nr, filters=owner_filter))
     app.add_handler(CommandHandler("nw", handle_nw, filters=owner_filter))
     app.add_handler(CommandHandler("search", handle_search, filters=owner_filter))
-    app.add_handler(CommandHandler("model", handle_model, filters=owner_filter))
-    app.add_handler(CallbackQueryHandler(handle_model_callback, pattern=r"^model:"))
     app.add_handler(MessageHandler(owner_filter & filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(owner_filter & filters.PHOTO, handle_photo))
 
