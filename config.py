@@ -3,9 +3,6 @@ API_KEY         = "sk-jbvWoGZoz0pWVqmVAtKxVoG0PYz3g4VkGn4iQwB2UxKP5BNj"
 API_BASE        = "https://api.dzzi.ai/v1"
 MODEL           = "[按量]claude-opus-4-6"
 
-HAIKU_KEY       = "sk-i3Ec9RdP5xyWgRFK2rYTj8FgN7sJizxlFOnZ4FsJ2xJ3EeDv"
-HAIKU_MODEL     = "[按次]claude-haiku-4-5-20251001"
-
 SUPABASE_URL    = "https://yqfxcebqzqgzjcwffppr.supabase.co"
 SUPABASE_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZnhjZWJxenFnempjd2ZmcHByIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjgwNjkyNywiZXhwIjoyMDg4MzgyOTI3fQ.WNo0VR0xD2rwS9aMDg9SguZjSVV7_nVxwXAZQJrFV-Y"
 
