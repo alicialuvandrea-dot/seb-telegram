@@ -27,3 +27,6 @@ GROK_MODEL      = "x-ai/grok-4.1-fast"
 GROK_MAX_TOKENS = 1024
 IMGHOST_DIR     = "/home/ubuntu/imghost/files"
 IMGHOST_URL     = "https://imghost.sebsakura.top"
+
+WEBSITE_URL     = "https://home.sebsakura.top"
+WEBSITE_SECRET  = "c0bf81f798a1a508f4e9ac7b529b1a82f8eb6970d4279a340ef006cbc735247f"

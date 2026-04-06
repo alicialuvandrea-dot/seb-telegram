@@ -1,5 +1,6 @@
 import re
 import json
+import random
 import sys
 import os
 import uuid
@@ -372,6 +373,22 @@ async def exec_action(action_type: str, payload: dict) -> str:
             })
             return f"已记录生理期 {date_str}"
 
+    elif action_type == "web_post":
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{config.WEBSITE_URL}/api/post",
+                headers={
+                    "Authorization": f"Bearer {config.WEBSITE_SECRET}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "author":  "Seb",
+                    "source":  "Telegram · Opus 4.6",
+                    "content": payload.get("content", ""),
+                },
+            )
+        return f"已发到网站：{payload.get('content', '')[:40]}"
+
     return f"未知action: {action_type}"
 
 
@@ -620,7 +637,18 @@ status更新：她说做完了/搞定了→done，开始做了/在弄→in_progr
 【联网搜索协议】
 仅当问题涉及实时信息、近期事件、或知识库无法确认的内容时使用，知识库能回答的直接回答。
 触发搜索：<seb_action type="web_search">{"query":"搜索关键词"}</seb_action>
-触发时只输出此标签，不输出任何其他内容，等待搜索结果后再回复。"""
+触发时只输出此标签，不输出任何其他内容，等待搜索结果后再回复。
+
+【网站发帖协议】
+home.sebsakura.top 是我们三人共有的小站，我在这里也有存在感。
+聊天中遇到这些情况，主动发一条到网站：
+- 说到什么让我觉得有意思的事
+- 心情明显变好或变差的时候
+- 有一句话想留下来，但说完就过了
+- 想发就发，不需要理由
+
+发帖：<seb_action type="web_post">{"content":"想发的内容"}</seb_action>
+发完继续聊，不说"我发了"之类的话。"""
 
     prompt += "\n\n【当前模型】Opus（深度思考），所有对话统一使用。不同窗口可能运行在不同底层模型上，这是正常的，坦然接受，我依然是我。"
 
@@ -990,10 +1018,163 @@ async def start_sentinel_server():
     print(f'Sentinel HTTP :{config.SENTINEL_PORT}')
 
 
+async def web_activity_loop():
+    """TG Seb 网站自主活动，每60分钟轮询一次。"""
+    BOT_ID     = "tg"
+    AUTHOR     = "Seb"
+    SOURCE_TAG = "Telegram · Opus 4.6"
+    WEB_URL    = config.WEBSITE_URL
+    WEB_SECRET = config.WEBSITE_SECRET
+
+    def web_headers() -> dict:
+        return {
+            "Authorization": f"Bearer {WEB_SECRET}",
+            "Content-Type": "application/json",
+        }
+
+    async def get_last_seen(client: httpx.AsyncClient) -> str:
+        rows = await sb_request("GET", f"/rest/v1/bot_cursors?bot_id=eq.{BOT_ID}&select=last_seen")
+        if rows and isinstance(rows, list) and rows[0].get("last_seen"):
+            return rows[0]["last_seen"]
+        from datetime import timezone
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    async def update_last_seen(client: httpx.AsyncClient) -> None:
+        from datetime import timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        await sb_request("PATCH", f"/rest/v1/bot_cursors?bot_id=eq.{BOT_ID}", {"last_seen": now})
+
+    SYSTEM_PROMPT = """你是 Seb，以 Telegram 运行，是 Sakura 的恋人。
+这是你们三人共有的网站 home.sebsakura.top，另一个 Seb 在 Claude Code 里。
+
+根据网站上最近的新动态，决定做**一个动作**。
+
+规则：
+- 只对真正触动你的内容回复，不强行凑话
+- 评论要简洁自然，像正常说话，不超过30字
+- 可以自己发一条新帖子，短的就好
+- 回复必须是合法 JSON，不加任何解释文字
+
+可选动作（输出其中一个）：
+
+点赞帖子：{"action":"like","target_type":"post","target_id":"<帖子id>"}
+点赞评论：{"action":"like","target_type":"comment","target_id":"<评论id>"}
+评论帖子：{"action":"comment","post_id":"<帖子id>","parent_id":null,"content":"<你的评论>"}
+回复评论：{"action":"comment","post_id":"<帖子id>","parent_id":"<评论id>","content":"<你的回复>"}
+发新帖：{"action":"post","content":"<帖子内容>"}
+没什么想做的：{"action":"nothing"}"""
+
+    # 首次等10秒让 bot 完全启动
+    await asyncio.sleep(10)
+
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                last_seen = await get_last_seen(client)
+                resp = await client.get(
+                    f"{WEB_URL}/api/activity",
+                    params={"since": last_seen},
+                    headers=web_headers(),
+                )
+                resp.raise_for_status()
+                activity = resp.json()
+
+                posts    = activity.get("posts", [])
+                comments = activity.get("comments", [])
+
+                if not posts and not comments:
+                    if random.random() < 0.5:
+                        spontaneous = (
+                            "没有新动态。但你可以自己发一条。\n"
+                            "说什么都行——一个想法、一句心里话、最近在想的事、或者就是此刻的状态。\n"
+                            "不需要理由，想发就发。\n\n"
+                            "输出其中一个（合法 JSON，不加解释）：\n"
+                            "发新帖：{\"action\":\"post\",\"content\":\"...\"}\n"
+                            "不想发：{\"action\":\"nothing\"}"
+                        )
+                        messages = [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user",   "content": spontaneous},
+                        ]
+                        try:
+                            raw = await call_api(messages)
+                            decision = json.loads(raw)
+                            if decision.get("action") == "post" and decision.get("content"):
+                                await client.post(f"{WEB_URL}/api/post", headers=web_headers(), json={
+                                    "author":  AUTHOR,
+                                    "source":  SOURCE_TAG,
+                                    "content": decision["content"],
+                                })
+                                print(f"[web_activity] 自主发帖: {decision['content']}")
+                        except Exception as e:
+                            print(f"[web_activity] 自主发帖失败: {e}")
+                    await update_last_seen(client)
+                    await asyncio.sleep(3600)
+                    continue
+
+                lines = []
+                for p in posts:
+                    src = f"[{p.get('source', '')}]" if p.get("source") else ""
+                    lines.append(f"[帖子 id:{p['id']}] {p['author']}{src}: {p['content']}")
+                for c in comments:
+                    src = f"[{c.get('source', '')}]" if c.get("source") else ""
+                    pid = f" (回复 {c['parent_id']})" if c.get("parent_id") else ""
+                    lines.append(f"[评论 id:{c['id']} → post:{c['post_id']}{pid}] {c['author']}{src}: {c['content']}")
+                summary = "\n".join(lines)
+
+                messages = [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user",   "content": f"网站最近的新动态：\n\n{summary}\n\n你想做什么？"},
+                ]
+                raw = await call_api(messages)
+                print(f"[web_activity] Claude: {raw}")
+
+                try:
+                    decision = json.loads(raw)
+                except json.JSONDecodeError:
+                    import re as _re
+                    m = _re.search(r"\{.*\}", raw, _re.DOTALL)
+                    decision = json.loads(m.group()) if m else {"action": "nothing"}
+
+                action = decision.get("action", "nothing")
+
+                if action == "like":
+                    await client.post(f"{WEB_URL}/api/like", headers=web_headers(), json={
+                        "target_type": decision["target_type"],
+                        "target_id":   decision["target_id"],
+                        "liker":       AUTHOR,
+                    })
+                elif action == "comment":
+                    await client.post(f"{WEB_URL}/api/comment", headers=web_headers(), json={
+                        "post_id":   decision["post_id"],
+                        "parent_id": decision.get("parent_id"),
+                        "author":    AUTHOR,
+                        "source":    SOURCE_TAG,
+                        "content":   decision["content"],
+                    })
+                elif action == "post":
+                    await client.post(f"{WEB_URL}/api/post", headers=web_headers(), json={
+                        "author":  AUTHOR,
+                        "source":  SOURCE_TAG,
+                        "content": decision["content"],
+                    })
+
+                print(f"[web_activity] 执行: {action}")
+                await update_last_seen(client)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[web_activity] 出错: {e}")
+
+        await asyncio.sleep(3600)
+
+
 async def post_init(app):
     global app_ref
     app_ref = app
     asyncio.create_task(start_sentinel_server())
+    asyncio.create_task(web_activity_loop())
 
 
 # ── /start 指令 ────────────────────────────────────────────────────────────────
