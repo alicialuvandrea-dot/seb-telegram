@@ -355,36 +355,29 @@ async def exec_action(action_type: str, payload: dict) -> str:
 
         existing = await sb_request("GET", f"/period_records?date=eq.{date_str}&select=*")
 
-        new_symptoms = payload.get("symptoms") or ""
-        new_notes    = payload.get("notes") or ""
-
         if existing:
             old = existing[0]
-            merged_symptoms = old.get("symptoms") or ""
-            if new_symptoms and new_symptoms not in merged_symptoms:
-                merged_symptoms = (merged_symptoms + "；" + new_symptoms).strip("；")
-            merged_notes = old.get("notes") or ""
-            if new_notes and new_notes not in merged_notes:
-                merged_notes = (merged_notes + "；" + new_notes).strip("；")
+            # 只更新还未记录的字段，已有值的不覆盖
             patch_body: dict = {}
-            if merged_symptoms != (old.get("symptoms") or ""):
-                patch_body["symptoms"] = merged_symptoms
-            if merged_notes != (old.get("notes") or ""):
-                patch_body["notes"] = merged_notes
             if payload.get("day_num") and not old.get("day_num"):
                 patch_body["day_num"] = payload["day_num"]
             if payload.get("flow") and not old.get("flow"):
                 patch_body["flow"] = payload["flow"]
+            if payload.get("symptoms") and not old.get("symptoms"):
+                patch_body["symptoms"] = payload["symptoms"]
+            if payload.get("notes") and not old.get("notes"):
+                patch_body["notes"] = payload["notes"]
             if patch_body:
                 await sb_request("PATCH", f"/period_records?date=eq.{date_str}", patch_body)
-            return f"已更新生理期记录 {date_str}"
+                return f"已补充生理期记录 {date_str}"
+            return f"生理期 {date_str} 已有完整记录，跳过"
         else:
             await sb_request("POST", "/period_records", {
                 "date":     date_str,
                 "day_num":  payload.get("day_num"),
                 "flow":     payload.get("flow", ""),
-                "symptoms": new_symptoms,
-                "notes":    new_notes,
+                "symptoms": payload.get("symptoms") or "",
+                "notes":    payload.get("notes") or "",
             })
             return f"已记录生理期 {date_str}"
 
