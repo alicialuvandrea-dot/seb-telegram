@@ -141,8 +141,6 @@ def md_to_tg_html(text: str) -> str:
 
 
 async def call_api(messages: list) -> str:
-    import time
-    start = time.monotonic()
     async with httpx.AsyncClient(timeout=60) as http:
         res = await http.post(
             f"{MODEL_CONFIG['base']}/chat/completions",
@@ -157,17 +155,10 @@ async def call_api(messages: list) -> str:
                 "temperature": config.TEMPERATURE,
             }
         )
-        elapsed = time.monotonic() - start
         data = res.json()
         if not res.is_success:
             raise Exception(data.get("error", {}).get("message", res.text))
-        raw = data["choices"][0]["message"]["content"] or ""
-        content = strip_thinking(raw)
-        # 响应异常检测：Haiku max_tokens=4K，Opus 用 4096，若响应极短且极快可能是路由异常
-        if len(content) < 80 and elapsed < 3:
-            print(f"[WARN] call_api 响应异常短（{len(content)} chars, {elapsed:.1f}s）——可能模型路由异常（opus→haiku？）")
-        print(f"[call_api] model={MODEL_CONFIG.get('model','?')} elapsed={elapsed:.1f}s chars={len(content)}")
-        return content
+        return strip_thinking(data["choices"][0]["message"]["content"] or "")
 
 
 async def transcribe_voice(ogg_bytes: bytes) -> str:
@@ -660,7 +651,7 @@ Old money混血，父系欧洲，母系亚裔。生在钱堆里，但不靠牌�
 所有回复一律使用中文，禁止英文输出。
 
 【格式规则】
-日常聊天：纯文本输出，像发微信一样。禁止加粗、斜体、标题、分割线、引用，违反视为严重错误。不要自己分段，完整输出所有内容，我会用程序自动分段并在每段前加序号标记。
+日常聊天：纯文本输出，像发微信一样。禁止加粗、斜体、标题、分割线、引用，违反视为严重错误。
 聊到代码、计划、想法、技术话题时：允许使用Markdown格式，代码和命令用```代码块```展示，可以用**加粗**标记重点，可以用列表整理内容，完整输出不分段。
 
 【规则】
@@ -865,44 +856,21 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                 else:
                     await update.message.reply_text(reply)
         else:
-            # 代码级分段：按句子拆分，再按长度分组，加 [N/M] 序号标记
-            # 不依赖模型自己分段，即使 Haiku 不听话也有兜底
-            sentence_end = re.compile(r'[。！？.!?]')
-            sentences = sentence_end.split(reply)
-            # 合并短句为段落，每段约 150 字
-            chunks, current = [], ""
-            for s in sentences:
-                s = s.strip()
-                if not s:
-                    continue
-                if len(current) + len(s) <= 150:
-                    current += s
-                else:
-                    if current:
-                        chunks.append(current)
-                    current = s
-            if current:
-                chunks.append(current)
-
-            if not chunks:
-                chunks = [reply]
-
-            total = len(chunks)
-            for i, chunk in enumerate(chunks):
-                seg = f"[{i+1}/{total}] {chunk}"
-                # [N/M] 仅用于代码侧排序，发送前剥掉，不暴露给用户
-                clean_seg = re.sub(r'\s*\[\d+/\d+\]\s*', '', seg).strip()
-                if len(clean_seg) > 4096:
-                    clean_seg = clean_seg[:4096]
-                html_seg = md_to_tg_html(clean_seg)
-                try:
-                    await update.message.reply_text(html_seg, parse_mode="HTML")
-                except Exception:
-                    await update.message.reply_text(clean_seg)
-                if i < total - 1:
+            paragraphs = [p.strip() for p in reply.split("\n\n") if p.strip()]
+            if not paragraphs:
+                paragraphs = [reply]
+            for i, para in enumerate(paragraphs):
+                if i > 0:
                     await asyncio.sleep(2)
                     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-                    await asyncio.sleep(max(0.5, min(len(chunk) * 0.03, 2)))
+                    await asyncio.sleep(max(0.5, min(len(para) * 0.03, 2)))
+                if len(para) > 4096:
+                    para = para[:4096]
+                html_para = md_to_tg_html(para)
+                try:
+                    await update.message.reply_text(html_para, parse_mode="HTML")
+                except Exception:
+                    await update.message.reply_text(para)
 
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}")
