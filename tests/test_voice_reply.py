@@ -154,3 +154,54 @@ async def test_exec_action_voice_reply_no_bot_skips_silently():
         "voice_reply",
         {"ja": "こんにちは", "zh": "你好", "emotion": "happy"},
     )
+
+
+@pytest.mark.asyncio
+async def test_do_reply_skips_text_send_on_voice_reply():
+    """有 voice_reply action 时 do_reply 不应发主文字"""
+    raw_reply = '<seb_action type="voice_reply">{"ja": "ありがとう", "zh": "谢谢你", "emotion": "happy"}</seb_action>'
+
+    with patch("bot.call_api", new=AsyncMock(return_value=raw_reply)), \
+         patch("bot.exec_action", new=AsyncMock(return_value="ok")), \
+         patch("bot.fetch_memories", new=AsyncMock(return_value=[])), \
+         patch("bot.fetch_plans", new=AsyncMock(return_value=[])):
+        from bot import do_reply
+        update = MagicMock()
+        update.message.reply_text = AsyncMock()
+        context = MagicMock()
+        context.bot.send_chat_action = AsyncMock()
+        context.bot.send_voice = AsyncMock()
+        context.bot.send_message = AsyncMock()
+
+        await do_reply(
+            chat_id=12345,
+            api_messages=[{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+            history_entry={"role": "user", "content": "hi"},
+            update=update,
+            context=context,
+        )
+
+    update.message.reply_text.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_do_reply_sends_text_when_no_voice_reply():
+    """没有 voice_reply action 时 do_reply 正常发主文字"""
+    with patch("bot.call_api", new=AsyncMock(return_value="普通回复文本")), \
+         patch("bot.fetch_memories", new=AsyncMock(return_value=[])), \
+         patch("bot.fetch_plans", new=AsyncMock(return_value=[])):
+        from bot import do_reply
+        update = MagicMock()
+        update.message.reply_text = AsyncMock()
+        context = MagicMock()
+        context.bot.send_chat_action = AsyncMock()
+
+        await do_reply(
+            chat_id=12345,
+            api_messages=[{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+            history_entry={"role": "user", "content": "hi"},
+            update=update,
+            context=context,
+        )
+
+    update.message.reply_text.assert_called()

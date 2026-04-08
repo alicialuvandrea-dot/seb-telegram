@@ -773,11 +773,19 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
         reply = clean if actions else raw
         histories[chat_id].append({"role": "assistant", "content": reply})
 
+        has_voice = any(a["type"] == "voice_reply" for a in actions)
+
         for action in actions:
             try:
-                await exec_action(action["type"], action["payload"])
+                await exec_action(
+                    action["type"], action["payload"],
+                    chat_id=chat_id, bot=context.bot,
+                )
             except Exception as e:
                 print(f"[action error] {e}")
+
+        if has_voice:
+            return
 
         reply = reply.strip()
         user_text = history_entry.get("content", "")
