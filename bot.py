@@ -1002,9 +1002,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             is_nsfw = False
 
         if not is_nsfw:
-            # 非 NSFW：Claude 直接看 base64
+            # 非 NSFW：Claude 直接看图，自然回复
             api_content = [
-                {"type": "text", "text": caption if caption else "（请描述图片内容并回应）"},
+                {"type": "text", "text": caption if caption else ""},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
             ]
             api_messages = (
