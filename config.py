@@ -42,3 +42,6 @@ MINIMAX_VOICE_MAP = {
 }
 # 这些 voice 本身就是中文，不需要额外跟发中文配文
 MINIMAX_CHINESE_VOICES = {"mandarin", "cantonese"}
+
+GROQ_STT_KEY   = "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"
+GROQ_STT_MODEL = "whisper-large-v3"

@@ -161,6 +161,19 @@ async def call_api(messages: list) -> str:
         return strip_thinking(data["choices"][0]["message"]["content"] or "")
 
 
+async def transcribe_voice(ogg_bytes: bytes) -> str:
+    """把 Telegram 语音（OGG OPUS）发给 Groq Whisper，返回识别文字。"""
+    async with httpx.AsyncClient(timeout=60) as http:
+        res = await http.post(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {config.GROQ_STT_KEY}"},
+            data={"model": config.GROQ_STT_MODEL, "language": "zh"},
+            files={"file": ("voice.ogg", ogg_bytes, "audio/ogg")},
+        )
+        res.raise_for_status()
+        return res.json().get("text", "").strip()
+
+
 async def call_tts(text: str, emotion: str = "neutral", voice_id: str | None = None) -> bytes:
     resolved_voice_id = voice_id or config.MINIMAX_VOICE_MAP.get("default", "Japanese_GentleButler")
     async with httpx.AsyncClient(timeout=30) as http:
@@ -775,7 +788,8 @@ emotion 可选值：happy / sad / neutral / fearful / disgusted / surprised / an
 规则：
 - 根据话题和心情自由选择语言，不拘一格
 - 语音 action 放在回复末尾，不另外说"我用语音回你"之类的话
-- 频率克制，只在真正值得的时候用"""
+- 频率克制，只在真正值得的时候用
+- 她要求用多种语言说话（比如"用你会的所有语言表白"/"用每种语言都说一遍"），或者我自己想同时用几种语言表达——就连续发多个 voice_reply action，每个 action 一种语言，内容各自不同，不重复翻译"""
 
     return prompt
 
@@ -1358,6 +1372,34 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("在。🌸")
 
 
+# ── 语音消息 ───────────────────────────────────────────────────────────────────
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+    try:
+        tg_file = await context.bot.get_file(update.message.voice.file_id)
+        ogg_bytes = await tg_file.download_as_bytearray()
+        text = await transcribe_voice(bytes(ogg_bytes))
+    except Exception as e:
+        print(f"[STT error] {e}")
+        await update.message.reply_text("没听清楚，再说一遍？")
+        return
+    if not text:
+        await update.message.reply_text("没听清楚，再说一遍？")
+        return
+
+    memories = await fetch_memories()
+    plans = await fetch_plans()
+    system = build_system(memories, plans)
+    history_entry = {"role": "user", "content": text}
+    api_messages = (
+        [{"role": "system", "content": system}]
+        + histories[chat_id]
+        + [history_entry]
+    )
+    await do_reply(chat_id, api_messages, history_entry, update, context)
+
+
 # ── /clear 指令 ────────────────────────────────────────────────────────────────
 async def handle_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -1398,6 +1440,7 @@ def main():
     app.add_handler(CommandHandler("search", handle_search, filters=owner_filter))
     app.add_handler(MessageHandler(owner_filter & filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(owner_filter & filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(owner_filter & filters.VOICE, handle_voice))
 
     app.add_error_handler(error_handler)
     print("Seb Bot 已启动，等待消息")
