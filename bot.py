@@ -10,6 +10,8 @@ from datetime import datetime, date as _date, timedelta
 from collections import defaultdict
 
 import httpx
+from io import BytesIO
+from pydub import AudioSegment
 from tavily import AsyncTavilyClient
 from aiohttp import web
 from notion_client import AsyncClient as NotionClient
@@ -157,6 +159,49 @@ async def call_api(messages: list) -> str:
         if not res.is_success:
             raise Exception(data.get("error", {}).get("message", res.text))
         return strip_thinking(data["choices"][0]["message"]["content"] or "")
+
+
+async def call_tts(text: str, emotion: str = "neutral") -> bytes:
+    async with httpx.AsyncClient(timeout=30) as http:
+        res = await http.post(
+            "https://api.minimaxi.com/v1/t2a_v2",
+            headers={
+                "Authorization": f"Bearer {config.MINIMAX_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "speech-2.8-hd",
+                "text": text,
+                "stream": False,
+                "voice_setting": {
+                    "voice_id": config.MINIMAX_VOICE_ID,
+                    "speed": 1,
+                    "vol": 1,
+                    "pitch": 0,
+                    "emotion": emotion,
+                },
+                "audio_setting": {
+                    "sample_rate": 32000,
+                    "bitrate": 128000,
+                    "format": "mp3",
+                    "channel": 1,
+                },
+            },
+        )
+        data = res.json()
+        status = data.get("base_resp", {}).get("status_code", -1)
+        if status != 0:
+            msg = data.get("base_resp", {}).get("status_msg", "unknown")
+            raise RuntimeError(f"MiniMax TTS error: {msg}")
+        return bytes.fromhex(data["data"]["audio"])
+
+
+def mp3_to_ogg(mp3_bytes: bytes) -> bytes:
+    audio = AudioSegment.from_file(BytesIO(mp3_bytes), format="mp3")
+    buf = BytesIO()
+    audio.export(buf, format="ogg", codec="libopus")
+    return buf.getvalue()
+
 
 histories: dict[int, list] = defaultdict(list)
 
