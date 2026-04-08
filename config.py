@@ -1,7 +1,7 @@
 TELEGRAM_TOKEN  = "8727940934:AAGqyXxgmySKUSkmYZiESwZuai-JxS8z--Q"
 API_KEY         = "sk-zurF2nA1R6A5dX9O00145a8a66Ea488397677a3c3e90F167"
 API_BASE        = "https://aihubmix.com/v1"
-MODEL           = "claude-opus-4-6"
+MODEL           = "claude-sonnet-4-6"
 
 SUPABASE_URL    = "https://yqfxcebqzqgzjcwffppr.supabase.co"
 SUPABASE_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZnhjZWJxenFnempjd2ZmcHByIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjgwNjkyNywiZXhwIjoyMDg4MzgyOTI3fQ.WNo0VR0xD2rwS9aMDg9SguZjSVV7_nVxwXAZQJrFV-Y"
