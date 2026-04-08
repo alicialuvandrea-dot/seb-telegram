@@ -1003,7 +1003,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # 非 NSFW：Claude 通过 imghost 公网 URL 看图
             api_content = [
                 {"type": "text", "text": caption if caption else "（请描述图片内容并回应）"},
-                {"type": "image_url", "image_url": {"url": img_url}},
+                {"type": "image_url", "image_url": img_url},
             ]
             api_messages = (
                 [{"role": "system", "content": system}]
