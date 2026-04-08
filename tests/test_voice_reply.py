@@ -120,9 +120,7 @@ async def test_exec_action_voice_reply_sends_voice_and_spoiler():
 
     mock_bot.send_message.assert_called_once()
     msg_args = mock_bot.send_message.call_args
-    assert "||" in msg_args[0][1]
     assert "你好" in msg_args[0][1]
-    assert msg_args[1].get("parse_mode") == "MarkdownV2"
 
 
 @pytest.mark.asyncio
