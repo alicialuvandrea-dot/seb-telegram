@@ -8,14 +8,10 @@ import pytest
 mock_config = MagicMock()
 mock_config.MINIMAX_API_KEY = "test-key"
 mock_config.MINIMAX_VOICE_MAP = {
-    "default":   "Japanese_GentleButler",
-    "whisper":   "whisper_man",
-    "english":   "English_DecentYoungMan",
-    "mandarin":  "Chinese (Mandarin)_Gentleman",
-    "cantonese": "Cantonese_Articulate_commentator_vv2",
-    "korean":    "Korean_DominantMan",
+    "default": "Japanese_GentleButler",
+    "whisper": "whisper_man",
+    "english": "English_DecentYoungMan",
 }
-mock_config.MINIMAX_CHINESE_VOICES = {"mandarin", "cantonese"}
 mock_config.MAX_HISTORY = 20
 mock_config.MAX_TOKENS = 4096
 mock_config.TEMPERATURE = 0.9
@@ -159,38 +155,6 @@ async def test_exec_action_voice_reply_no_bot_skips_silently():
         "voice_reply",
         {"text": "こんにちは", "zh": "你好", "voice": "default", "emotion": "happy"},
     )
-
-
-@pytest.mark.asyncio
-async def test_exec_action_voice_reply_chinese_voice_no_zh():
-    """中文声音（mandarin/cantonese）不应发中文配文"""
-    fake_mp3 = b"mp3_data"
-    fake_ogg = b"ogg_data"
-    mock_bot = MagicMock()
-    mock_bot.send_voice = AsyncMock()
-    mock_bot.send_message = AsyncMock()
-
-    voice_map = {
-        "default": "Japanese_GentleButler",
-        "mandarin": "Chinese (Mandarin)_Gentleman",
-        "cantonese": "Cantonese_Articulate_commentator_vv2",
-    }
-    chinese_voices = {"mandarin", "cantonese"}
-
-    with patch("bot.call_tts", new=AsyncMock(return_value=fake_mp3)), \
-         patch("bot.mp3_to_ogg", return_value=fake_ogg), \
-         patch("bot.config.MINIMAX_VOICE_MAP", voice_map), \
-         patch("bot.config.MINIMAX_CHINESE_VOICES", chinese_voices):
-        from bot import exec_action
-        await exec_action(
-            "voice_reply",
-            {"text": "你好啊宝贝", "zh": "你好啊宝贝", "voice": "mandarin", "emotion": "happy"},
-            chat_id=12345,
-            bot=mock_bot,
-        )
-
-    mock_bot.send_voice.assert_called_once()
-    mock_bot.send_message.assert_not_called()
 
 
 @pytest.mark.asyncio

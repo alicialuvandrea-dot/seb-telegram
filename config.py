@@ -33,15 +33,10 @@ WEBSITE_SECRET  = "c0bf81f798a1a508f4e9ac7b529b1a82f8eb6970d4279a340ef006cbc7352
 
 MINIMAX_API_KEY  = "sk-api-ksB2sFdJEf2htKBGq-z2KifZUB3KLg18xeDMwwC4zR3W8w2N6vrTuTbNQVDt4YthjQKQsKOX2nkMNd_wCL_qrMKIC3LXYoNlDLnrN3ftUwvX-2cH0QQKGIg"
 MINIMAX_VOICE_MAP = {
-    "default":   "Japanese_GentleButler",
-    "whisper":   "whisper_man",
-    "english":   "English_DecentYoungMan",
-    "mandarin":  "Chinese (Mandarin)_Gentleman",
-    "cantonese": "Cantonese_Articulate_commentator_vv2",
-    "korean":    "Korean_DominantMan",
+    "default": "Japanese_GentleButler",
+    "whisper": "whisper_man",
+    "english": "English_DecentYoungMan",
 }
-# 这些 voice 本身就是中文，不需要额外跟发中文配文
-MINIMAX_CHINESE_VOICES = {"mandarin", "cantonese"}
 
 GROQ_STT_KEY   = "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"
 GROQ_STT_MODEL = "whisper-large-v3"
