@@ -7,7 +7,15 @@ import pytest
 # mock config，阻止真实 config.py 被导入
 mock_config = MagicMock()
 mock_config.MINIMAX_API_KEY = "test-key"
-mock_config.MINIMAX_VOICE_ID = "Japanese_GentleButler"
+mock_config.MINIMAX_VOICE_MAP = {
+    "default":   "Japanese_GentleButler",
+    "whisper":   "whisper_man",
+    "english":   "English_DecentYoungMan",
+    "mandarin":  "Chinese (Mandarin)_Gentleman",
+    "cantonese": "Cantonese_Articulate_commentator_vv2",
+    "korean":    "Korean_DominantMan",
+}
+mock_config.MINIMAX_CHINESE_VOICES = {"mandarin", "cantonese"}
 mock_config.MAX_HISTORY = 20
 mock_config.MAX_TOKENS = 4096
 mock_config.TEMPERATURE = 0.9
@@ -109,7 +117,7 @@ async def test_exec_action_voice_reply_sends_voice_and_spoiler():
         from bot import exec_action
         await exec_action(
             "voice_reply",
-            {"ja": "こんにちは", "zh": "你好", "emotion": "happy"},
+            {"text": "こんにちは", "zh": "你好", "voice": "default", "emotion": "happy"},
             chat_id=12345,
             bot=mock_bot,
         )
@@ -134,7 +142,7 @@ async def test_exec_action_voice_reply_fallback_on_tts_error():
         from bot import exec_action
         await exec_action(
             "voice_reply",
-            {"ja": "こんにちは", "zh": "你好", "emotion": "happy"},
+            {"text": "こんにちは", "zh": "你好", "voice": "default", "emotion": "happy"},
             chat_id=12345,
             bot=mock_bot,
         )
@@ -147,17 +155,48 @@ async def test_exec_action_voice_reply_fallback_on_tts_error():
 async def test_exec_action_voice_reply_no_bot_skips_silently():
     """bot 参数为 None 时不应抛出，静默跳过"""
     from bot import exec_action
-    # 不应抛出异常
     await exec_action(
         "voice_reply",
-        {"ja": "こんにちは", "zh": "你好", "emotion": "happy"},
+        {"text": "こんにちは", "zh": "你好", "voice": "default", "emotion": "happy"},
     )
+
+
+@pytest.mark.asyncio
+async def test_exec_action_voice_reply_chinese_voice_no_zh():
+    """中文声音（mandarin/cantonese）不应发中文配文"""
+    fake_mp3 = b"mp3_data"
+    fake_ogg = b"ogg_data"
+    mock_bot = MagicMock()
+    mock_bot.send_voice = AsyncMock()
+    mock_bot.send_message = AsyncMock()
+
+    voice_map = {
+        "default": "Japanese_GentleButler",
+        "mandarin": "Chinese (Mandarin)_Gentleman",
+        "cantonese": "Cantonese_Articulate_commentator_vv2",
+    }
+    chinese_voices = {"mandarin", "cantonese"}
+
+    with patch("bot.call_tts", new=AsyncMock(return_value=fake_mp3)), \
+         patch("bot.mp3_to_ogg", return_value=fake_ogg), \
+         patch("bot.config.MINIMAX_VOICE_MAP", voice_map), \
+         patch("bot.config.MINIMAX_CHINESE_VOICES", chinese_voices):
+        from bot import exec_action
+        await exec_action(
+            "voice_reply",
+            {"text": "你好啊宝贝", "zh": "你好啊宝贝", "voice": "mandarin", "emotion": "happy"},
+            chat_id=12345,
+            bot=mock_bot,
+        )
+
+    mock_bot.send_voice.assert_called_once()
+    mock_bot.send_message.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_do_reply_skips_text_send_on_voice_reply():
     """有 voice_reply action 时 do_reply 不应发主文字"""
-    raw_reply = '<seb_action type="voice_reply">{"ja": "ありがとう", "zh": "谢谢你", "emotion": "happy"}</seb_action>'
+    raw_reply = '<seb_action type="voice_reply">{"text": "ありがとう", "zh": "谢谢你", "voice": "default", "emotion": "happy"}</seb_action>'
 
     with patch("bot.call_api", new=AsyncMock(return_value=raw_reply)), \
          patch("bot.exec_action", new=AsyncMock(return_value="ok")), \
