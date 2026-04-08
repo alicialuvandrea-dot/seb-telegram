@@ -30,3 +30,6 @@ IMGHOST_URL     = "https://imghost.sebsakura.top"
 
 WEBSITE_URL     = "https://home.sebsakura.top"
 WEBSITE_SECRET  = "c0bf81f798a1a508f4e9ac7b529b1a82f8eb6970d4279a340ef006cbc735247f"
+
+MINIMAX_API_KEY  = "sk-api-ksB2sFdJEf2htKBGq-z2KifZUB3KLg18xeDMwwC4zR3W8w2N6vrTuTbNQVDt4YthjQKQsKOX2nkMNd_wCL_qrMKIC3LXYoNlDLnrN3ftUwvX-2cH0QQKGIg"
+MINIMAX_VOICE_ID = "Japanese_GentleButler"
