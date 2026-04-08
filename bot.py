@@ -307,7 +307,7 @@ async def sb_request(method: str, path: str, body=None):
         return res.json() if res.text else None
 
 
-async def exec_action(action_type: str, payload: dict) -> str:
+async def exec_action(action_type: str, payload: dict, *, chat_id: int | None = None, bot=None) -> str:
     if action_type == "save_memory":
         content = payload.get("content", "")
         # 去重：用内容前30字做模糊查询，有近似记录则跳过
@@ -452,6 +452,26 @@ async def exec_action(action_type: str, payload: dict) -> str:
             )
         _last_web_post_time = datetime.now().timestamp()
         return f"已发到网站：{payload.get('content', '')[:40]}"
+
+    elif action_type == "voice_reply":
+        if bot is None or chat_id is None:
+            print("[voice_reply] 缺少 bot 或 chat_id，跳过")
+            return "voice_reply: 跳过"
+        ja_text = payload.get("ja", "")
+        zh_text = payload.get("zh", "")
+        emotion = payload.get("emotion", "neutral")
+        try:
+            mp3_bytes = await call_tts(ja_text, emotion)
+            ogg_bytes = mp3_to_ogg(mp3_bytes)
+            await bot.send_voice(chat_id, BytesIO(ogg_bytes))
+            if zh_text:
+                escaped = re.sub(r'([_*\[\]()~`>#+\-=|{}.!\\])', r'\\\1', zh_text)
+                await bot.send_message(chat_id, f"||{escaped}||", parse_mode="MarkdownV2")
+        except Exception as e:
+            print(f"[voice_reply error] {e}")
+            if zh_text:
+                await bot.send_message(chat_id, zh_text)
+        return "ok"
 
     return f"未知action: {action_type}"
 
