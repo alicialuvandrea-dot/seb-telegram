@@ -4,7 +4,6 @@ import random
 import sys
 import os
 import uuid
-import base64
 import asyncio
 from datetime import datetime, date as _date, timedelta
 from collections import defaultdict
@@ -986,7 +985,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo = update.message.photo[-1]
     tg_file = await context.bot.get_file(photo.file_id)
     photo_bytes = bytes(await tg_file.download_as_bytearray())
-    b64 = base64.b64encode(photo_bytes).decode()
 
     history_entry = {"role": "user", "content": f"[图片]{(' ' + caption) if caption else ''}"}
     memories = await fetch_memories()
@@ -1002,10 +1000,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             is_nsfw = False
 
         if not is_nsfw:
-            # 非 NSFW：Claude 直接看 base64
+            # 非 NSFW：Claude 通过 imghost 公网 URL 看图
             api_content = [
                 {"type": "text", "text": caption if caption else "（请描述图片内容并回应）"},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                {"type": "image_url", "image_url": {"url": img_url}},
             ]
             api_messages = (
                 [{"role": "system", "content": system}]
