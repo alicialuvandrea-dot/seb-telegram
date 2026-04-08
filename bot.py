@@ -128,7 +128,11 @@ def md_to_tg_html(text: str) -> str:
                     processed.append(f'<code>{code}</code>')
                 else:
                     ip = ip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    ip = re.sub(r'^#{1,6}\s+(.+)$', r'<b>\1</b>', ip, flags=re.MULTILINE)
+                    ip = re.sub(r'^[-*]\s+', '• ', ip, flags=re.MULTILINE)
                     ip = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', ip)
+                    ip = re.sub(r'\*([^*\n]+?)\*', r'<i>\1</i>', ip)
+                    ip = re.sub(r'_([^_\n]+?)_', r'<i>\1</i>', ip)
                     processed.append(ip)
             result.append(''.join(processed))
     return ''.join(result)
@@ -739,7 +743,11 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                     await asyncio.sleep(max(0.5, min(len(para) * 0.03, 2)))
                 if len(para) > 4096:
                     para = para[:4096]
-                await update.message.reply_text(para)
+                html_para = md_to_tg_html(para)
+                try:
+                    await update.message.reply_text(html_para, parse_mode="HTML")
+                except Exception:
+                    await update.message.reply_text(para)
 
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}")
