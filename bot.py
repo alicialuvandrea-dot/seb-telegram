@@ -890,13 +890,15 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
             total = len(chunks)
             for i, chunk in enumerate(chunks):
                 seg = f"[{i+1}/{total}] {chunk}"
-                if len(seg) > 4096:
-                    seg = seg[:4096]
-                html_seg = md_to_tg_html(seg)
+                # [N/M] 仅用于代码侧排序，发送前剥掉，不暴露给用户
+                clean_seg = re.sub(r'\s*\[\d+/\d+\]\s*', '', seg).strip()
+                if len(clean_seg) > 4096:
+                    clean_seg = clean_seg[:4096]
+                html_seg = md_to_tg_html(clean_seg)
                 try:
                     await update.message.reply_text(html_seg, parse_mode="HTML")
                 except Exception:
-                    await update.message.reply_text(seg)
+                    await update.message.reply_text(clean_seg)
                 if i < total - 1:
                     await asyncio.sleep(2)
                     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
