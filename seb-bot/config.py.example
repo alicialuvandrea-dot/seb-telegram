@@ -1,0 +1,43 @@
+"""配置模板——复制为 config.py 并填入真实密钥。"""
+
+TELEGRAM_TOKEN  = "YOUR_TELEGRAM_BOT_TOKEN"
+API_KEY         = "YOUR_DZZI_AI_API_KEY"
+API_BASE        = "https://api.dzzi.ai/v1"
+MODEL           = "[按次]claude-sonnet-4-6"
+
+SUPABASE_URL    = "https://YOUR_PROJECT.supabase.co"
+SUPABASE_KEY    = "YOUR_SUPABASE_SERVICE_ROLE_KEY"
+
+SAKURA_CHAT_ID  = "YOUR_TELEGRAM_CHAT_ID"
+SENTINEL_TOKEN  = "YOUR_SENTINEL_TOKEN"
+SENTINEL_PORT   = 8765
+
+MEMORIES_LIMIT  = 50
+MAX_HISTORY     = 20
+TEMPERATURE     = 0.9
+MAX_TOKENS      = 4096
+
+NOTION_TOKEN    = "YOUR_NOTION_TOKEN"
+
+TAVILY_API_KEY     = "YOUR_TAVILY_API_KEY"
+SEARCH_MAX_RESULTS = 5
+
+GROK_KEY        = "YOUR_GROK_API_KEY"
+GROK_BASE       = "https://aihubmix.com/v1"
+GROK_MODEL      = "grok-4-1-fast-non-reasoning"
+GROK_MAX_TOKENS = 1024
+IMGHOST_DIR     = "/home/ubuntu/imghost/files"
+IMGHOST_URL     = "https://imghost.example.com"
+
+WEBSITE_URL     = "https://your-website.com"
+WEBSITE_SECRET  = "YOUR_WEBSITE_SECRET"
+
+MINIMAX_API_KEY  = "YOUR_MINIMAX_API_KEY"
+MINIMAX_VOICE_MAP = {
+    "default": "Japanese_GentleButler",
+    "whisper": "whisper_man",
+    "english": "English_DecentYoungMan",
+}
+
+GROQ_STT_KEY   = "YOUR_GROQ_STT_KEY"
+GROQ_STT_MODEL = "whisper-large-v3"
