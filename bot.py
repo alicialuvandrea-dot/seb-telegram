@@ -839,7 +839,7 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
             raw = await call_api(second_messages)
             clean, actions = parse_actions(raw)
 
-        reply = clean if actions else raw
+        reply = clean  # tags always stripped by regex, even if JSON parse fails
         histories[chat_id].append({"role": "assistant", "content": reply})
 
         has_voice = any(a["type"] == "voice_reply" for a in actions)
@@ -1164,7 +1164,7 @@ async def handle_sentinel(request):
     try:
         raw = await call_api(api_messages)
         clean, actions = parse_actions(raw)
-        reply = (clean if actions else raw).strip()
+        reply = clean.strip()  # tags always stripped by regex, even if JSON parse fails
         if reply.upper() != 'NO' and reply and app_ref:
             await app_ref.bot.send_message(chat_id=chat_id, text=reply)
             histories[chat_id].append({'role': 'assistant', 'content': reply})
