@@ -35,7 +35,7 @@ def test_extract_only_keyword():
 
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 
 @pytest.mark.asyncio
@@ -48,14 +48,19 @@ async def test_web_search_formats_results():
         ]
     }
 
-    async def mock_post(*args, **kwargs):
-        m = MagicMock()
-        m.status_code = 200
-        m.raise_for_status = MagicMock()
-        m.json = AsyncMock(return_value=mock_minimax_data)
-        return m
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json = lambda: mock_minimax_data
 
-    with patch("bot.httpx.AsyncClient.post", mock_post):
+    async def mock_post(*args, **kwargs):
+        return mock_resp
+
+    with patch("bot.httpx.AsyncClient") as MockClient:
+        instance = MockClient.return_value
+        instance.__aenter__ = AsyncMock(return_value=instance)
+        instance.__aexit__ = AsyncMock(return_value=None)
+        instance.post = mock_post
         from bot import web_search
         result = await web_search("测试关键词")
 
@@ -69,14 +74,19 @@ async def test_web_search_formats_results():
 @pytest.mark.asyncio
 async def test_web_search_empty_results():
     """MiniMax 返回空结果"""
-    async def mock_post(*args, **kwargs):
-        m = MagicMock()
-        m.status_code = 200
-        m.raise_for_status = MagicMock()
-        m.json = AsyncMock(return_value={"organic": []})
-        return m
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json = lambda: {"organic": []}
 
-    with patch("bot.httpx.AsyncClient.post", mock_post):
+    async def mock_post(*args, **kwargs):
+        return mock_resp
+
+    with patch("bot.httpx.AsyncClient") as MockClient:
+        instance = MockClient.return_value
+        instance.__aenter__ = AsyncMock(return_value=instance)
+        instance.__aexit__ = AsyncMock(return_value=None)
+        instance.post = mock_post
         from bot import web_search
         result = await web_search("无结果查询")
 
