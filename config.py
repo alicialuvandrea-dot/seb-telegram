@@ -1,6 +1,6 @@
 TELEGRAM_TOKEN  = "8727940934:AAGqyXxgmySKUSkmYZiESwZuai-JxS8z--Q"
 API_KEY         = "sk-i3Ec9RdP5xyWgRFK2rYTj8FgN7sJizxlFOnZ4FsJ2xJ3EeDv"
-API_BASE        = "https://api.dzzi.ai"
+API_BASE        = "https://api.dzzi.ai/v1"
 MODEL           = "[按次]claude-sonnet-4-6"
 
 SUPABASE_URL    = "https://yqfxcebqzqgzjcwffppr.supabase.co"
