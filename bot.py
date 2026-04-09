@@ -13,6 +13,8 @@ import httpx
 from io import BytesIO
 from pydub import AudioSegment
 from tavily import AsyncTavilyClient
+
+MINIMAX_SEARCH_HOST = "https://api.minimaxi.com"
 from aiohttp import web
 from notion_client import AsyncClient as NotionClient
 from telegram import Update
@@ -66,19 +68,51 @@ def extract_search_query(text: str) -> str | None:
 
 
 async def web_search(query: str) -> str:
+    # ── MiniMax 搜索 ────────────────────────────────────────────────────────────
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                f"{MINIMAX_SEARCH_HOST}/v1/coding_plan/search",
+                json={"q": query},
+                headers={
+                    "Authorization": f"Bearer {config.MINIMAX_API_KEY}",
+                    "Content-Type": "application/json",
+                    "MM-API-Source": "Minimax-MCP",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("organic", [])
+            if not results:
+                return f"【搜索结果：{query}】\n未找到相关结果"
+            lines = [f"【搜索结果：{query}】"]
+            for i, r in enumerate(results, 1):
+                lines.append(f"{i}. {r.get('title', '')} | {r.get('link', '')}")
+                snippet = r.get('snippet', '')[:300]
+                if snippet:
+                    lines.append(f"   {snippet}")
+            return "\n".join(lines)
+    except Exception as e:
+        minimax_failed = True
+    else:
+        minimax_failed = False
+
+    # ── Tavily fallback ────────────────────────────────────────────────────────
+    if not minimax_failed:
+        return f"【搜索失败：{e}】"
     client = AsyncTavilyClient(api_key=config.TAVILY_API_KEY)
     try:
         response = await client.search(query, max_results=config.SEARCH_MAX_RESULTS)
         results = response.get("results", [])
         if not results:
             return f"【搜索结果：{query}】\n未找到相关结果"
-        lines = [f"【搜索结果：{query}】"]
+        lines = [f"【搜索结果：{query}】（MiniMax 失败，Tavily 返回）"]
         for i, r in enumerate(results, 1):
             lines.append(f"{i}. {r['title']} | {r['url']}")
             lines.append(f"   {r.get('content', '')[:300]}")
         return "\n".join(lines)
-    except Exception as e:
-        return f"【搜索失败：{e}】"
+    except Exception as e2:
+        return f"【搜索失败：MiniMax 和 Tavily 均不可用】"
 
 
 # ── Notion 页面别名 ────────────────────────────────────────────────────────────
