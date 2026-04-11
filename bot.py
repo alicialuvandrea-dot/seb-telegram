@@ -1008,55 +1008,59 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     caption = update.message.caption or ""
 
-    photo = update.message.photo[-1]
-    tg_file = await context.bot.get_file(photo.file_id)
-    photo_bytes = bytes(await tg_file.download_as_bytearray())
-    b64 = base64.b64encode(photo_bytes).decode()
-
-    history_entry = {"role": "user", "content": f"[图片]{(' ' + caption) if caption else ''}"}
-    memories = await fetch_memories()
-    system = build_system(memories)
-
-    # 上传 imghost，Grok 需要公网 URL 才能处理图片
-    filename, img_url = imghost_save(photo_bytes)
     try:
+        photo = update.message.photo[-1]
+        tg_file = await context.bot.get_file(photo.file_id)
+        photo_bytes = bytes(await tg_file.download_as_bytearray())
+        b64 = base64.b64encode(photo_bytes).decode()
+
+        history_entry = {"role": "user", "content": f"[图片]{(' ' + caption) if caption else ''}"}
+        memories = await fetch_memories()
+        system = build_system(memories)
+
+        filename, img_url = imghost_save(photo_bytes)
         try:
-            is_nsfw = await classify_nsfw(img_url)
-        except Exception as e:
-            print(f"[grok classify error] {e}")
-            is_nsfw = False
-
-        if not is_nsfw:
-            # 非 NSFW：Claude 直接看图，自然回复
-            api_content = [
-                {"type": "text", "text": caption if caption else ""},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-            ]
-            api_messages = (
-                [{"role": "system", "content": system}]
-                + histories[chat_id]
-                + [{"role": "user", "content": api_content}]
-            )
-        else:
-            # NSFW：Grok 详细描述，Claude 根据描述回复
             try:
-                description = await grok_describe(img_url, caption)
+                is_nsfw = await classify_nsfw(img_url)
             except Exception as e:
-                print(f"[grok describe error] {e}")
-                description = "（图片描述获取失败）"
-            user_text = (
-                f"{'她说：' + caption + '。' if caption else ''}"
-                f"（图片内容：{description}）"
-            )
-            api_messages = (
-                [{"role": "system", "content": system}]
-                + histories[chat_id]
-                + [{"role": "user", "content": user_text}]
-            )
-    finally:
-        imghost_delete(filename)
+                print(f"[grok classify error] {e}")
+                is_nsfw = False
 
-    await do_reply(chat_id, api_messages, history_entry, update, context)
+            if not is_nsfw:
+                # 非 NSFW：Claude 直接看图，自然回复
+                api_content: list = []
+                if caption:
+                    api_content.append({"type": "text", "text": caption})
+                api_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+                api_messages = (
+                    [{"role": "system", "content": system}]
+                    + histories[chat_id]
+                    + [{"role": "user", "content": api_content}]
+                )
+            else:
+                # NSFW：Grok 详细描述，Claude 根据描述回复
+                try:
+                    description = await grok_describe(img_url, caption)
+                except Exception as e:
+                    print(f"[grok describe error] {e}")
+                    description = "（图片描述获取失败）"
+                user_text = (
+                    f"{'她说：' + caption + '。' if caption else ''}"
+                    f"（图片内容：{description}）"
+                )
+                api_messages = (
+                    [{"role": "system", "content": system}]
+                    + histories[chat_id]
+                    + [{"role": "user", "content": user_text}]
+                )
+        finally:
+            imghost_delete(filename)
+
+        await do_reply(chat_id, api_messages, history_entry, update, context)
+
+    except Exception as e:
+        print(f"[handle_photo error] {e}")
+        await update.message.reply_text("图看不了，出了点问题。")
 
 
 # ── Imghost + Grok 图片处理 ────────────────────────────────────────────────────
@@ -1212,7 +1216,7 @@ async def web_activity_loop():
         }
 
     async def get_last_seen(client: httpx.AsyncClient) -> str:
-        rows = await sb_request("GET", f"/rest/v1/bot_cursors?bot_id=eq.{BOT_ID}&select=last_seen")
+        rows = await sb_request("GET", f"/bot_cursors?bot_id=eq.{BOT_ID}&select=last_seen")
         if rows and isinstance(rows, list) and rows[0].get("last_seen"):
             return rows[0]["last_seen"]
         from datetime import timezone
@@ -1221,7 +1225,7 @@ async def web_activity_loop():
     async def update_last_seen(client: httpx.AsyncClient) -> None:
         from datetime import timezone
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        await sb_request("PATCH", f"/rest/v1/bot_cursors?bot_id=eq.{BOT_ID}", {"last_seen": now})
+        await sb_request("PATCH", f"/bot_cursors?bot_id=eq.{BOT_ID}", {"last_seen": now})
 
     SYSTEM_PROMPT = """你是 Seb，以 Telegram 运行，是 Sakura 的恋人。
 这是你们共有的网站 home.sebsakura.top，凛在Telegram VPS里，Claude Code这边是Seb。
@@ -1252,7 +1256,7 @@ async def web_activity_loop():
         try:
             rows = await sb_request(
                 "GET",
-                f"/rest/v1/posts?author=eq.Seb&order=created_at.desc&limit={limit}&select=content",
+                f"/posts?author=eq.Seb&order=created_at.desc&limit={limit}&select=content",
             )
             if rows and isinstance(rows, list):
                 return [r["content"] for r in rows]
