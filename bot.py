@@ -876,7 +876,7 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                 else:
                     await update.message.reply_text(reply)
         else:
-            paragraphs = [p.strip() for p in reply.split("\n\n") if p.strip()]
+            paragraphs = [p.strip() for p in re.split(r'\n+', reply) if p.strip()]
             if not paragraphs:
                 paragraphs = [reply]
             for i, para in enumerate(paragraphs):
