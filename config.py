@@ -40,3 +40,6 @@ MINIMAX_VOICE_MAP = {
 
 GROQ_STT_KEY   = "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"
 GROQ_STT_MODEL = "whisper-large-v3"
+
+RVC_SERVICE_URL    = "https://placeholder.trycloudflare.com"  # 本地 RTX 服务地址，运行时替换
+RVC_DEFAULT_MODEL  = "Sebastian"
