@@ -249,20 +249,19 @@ async def call_tts(text: str, emotion: str = "neutral", voice_id: str | None = N
 
 async def process_cover(url: str, model_name: str, chat_id: int, bot) -> None:
     try:
-        result = subprocess.run(
-            ["yt-dlp", "-x", "--audio-format", "mp3",
-             "-o", "-", "--no-playlist", url],
-            capture_output=True,
-            timeout=120,
+        proc = await asyncio.create_subprocess_exec(
+            "yt-dlp", "-x", "--audio-format", "mp3",
+            "-o", "-", "--no-playlist", url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-        if result.returncode != 0:
+        audio_bytes, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
+        if proc.returncode != 0:
             await bot.send_message(
                 chat_id=chat_id,
                 text="这个链接下载不了，换一个试试 🌸",
             )
             return
-
-        audio_bytes = result.stdout
 
         async with httpx.AsyncClient(timeout=300) as http:
             resp = await http.post(
@@ -295,11 +294,6 @@ async def process_cover(url: str, model_name: str, chat_id: int, bot) -> None:
         await bot.send_message(
             chat_id=chat_id,
             text="GPU 服务没开机，晚点再试 🌸",
-        )
-    except subprocess.TimeoutExpired:
-        await bot.send_message(
-            chat_id=chat_id,
-            text="下载超时了，可能链接有问题 🌸",
         )
     except asyncio.TimeoutError:
         await bot.send_message(

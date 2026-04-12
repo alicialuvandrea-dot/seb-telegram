@@ -74,13 +74,16 @@ async def test_process_cover_sends_audio_on_success():
     async def mock_post(*args, **kwargs):
         return mock_resp
 
+    mock_proc = MagicMock()
+    mock_proc.returncode = 0
+    mock_proc.communicate = AsyncMock(return_value=(b"fake_mp3_bytes", b""))
+
     with patch("bot.httpx.AsyncClient") as MockClient, \
-         patch("bot.subprocess.run") as mock_subprocess:
+         patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_subproc:
         instance = MockClient.return_value
         instance.__aenter__ = AsyncMock(return_value=instance)
         instance.__aexit__ = AsyncMock(return_value=None)
         instance.post = mock_post
-        mock_subprocess.return_value = MagicMock(returncode=0)
 
         bot_mock = MagicMock()
         bot_mock.send_audio = AsyncMock()
@@ -101,13 +104,16 @@ async def test_process_cover_sends_audio_on_success():
 async def test_process_cover_notifies_on_rvc_offline():
     import httpx as real_httpx
 
+    mock_proc = MagicMock()
+    mock_proc.returncode = 0
+    mock_proc.communicate = AsyncMock(return_value=(b"fake_mp3_bytes", b""))
+
     with patch("bot.httpx.AsyncClient") as MockClient, \
-         patch("bot.subprocess.run") as mock_subprocess:
+         patch("asyncio.create_subprocess_exec", return_value=mock_proc):
         instance = MockClient.return_value
         instance.__aenter__ = AsyncMock(return_value=instance)
         instance.__aexit__ = AsyncMock(return_value=None)
         instance.post = AsyncMock(side_effect=real_httpx.ConnectError("refused"))
-        mock_subprocess.return_value = MagicMock(returncode=0)
 
         bot_mock = MagicMock()
         bot_mock.send_message = AsyncMock()
@@ -127,9 +133,11 @@ async def test_process_cover_notifies_on_rvc_offline():
 
 @pytest.mark.asyncio
 async def test_process_cover_notifies_on_download_failure():
-    with patch("bot.subprocess.run") as mock_subprocess:
-        mock_subprocess.return_value = MagicMock(returncode=1)
+    mock_proc = MagicMock()
+    mock_proc.returncode = 1
+    mock_proc.communicate = AsyncMock(return_value=(b"", b"error"))
 
+    with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
         bot_mock = MagicMock()
         bot_mock.send_message = AsyncMock()
 
