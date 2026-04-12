@@ -6,6 +6,7 @@ import os
 import uuid
 import base64
 import asyncio
+import subprocess
 from datetime import datetime, date as _date, timedelta
 from collections import defaultdict
 
@@ -243,6 +244,73 @@ async def call_tts(text: str, emotion: str = "neutral", voice_id: str | None = N
             msg = data.get("base_resp", {}).get("status_msg", "unknown")
             raise RuntimeError(f"MiniMax TTS error: {msg}")
         return bytes.fromhex(data["data"]["audio"])
+
+
+
+async def process_cover(url: str, model_name: str, chat_id: int, bot) -> None:
+    try:
+        result = subprocess.run(
+            ["yt-dlp", "-x", "--audio-format", "mp3",
+             "-o", "-", "--no-playlist", url],
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            await bot.send_message(
+                chat_id=chat_id,
+                text="这个链接下载不了，换一个试试 🌸",
+            )
+            return
+
+        audio_bytes = result.stdout
+
+        async with httpx.AsyncClient(timeout=300) as http:
+            resp = await http.post(
+                f"{config.RVC_SERVICE_URL}/cover",
+                files={"audio": ("input.mp3", audio_bytes, "audio/mpeg")},
+                data={"model_name": model_name, "pitch": "0"},
+            )
+
+        if resp.status_code == 503:
+            await bot.send_message(
+                chat_id=chat_id,
+                text="模型还没准备好，等我训练完再来 🌸",
+            )
+            return
+
+        if not resp.is_success:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=f"翻唱失败了：{resp.text[:100]} 🌸",
+            )
+            return
+
+        await bot.send_audio(
+            chat_id=chat_id,
+            audio=resp.content,
+            filename="cover.ogg",
+        )
+
+    except httpx.ConnectError:
+        await bot.send_message(
+            chat_id=chat_id,
+            text="GPU 服务没开机，晚点再试 🌸",
+        )
+    except subprocess.TimeoutExpired:
+        await bot.send_message(
+            chat_id=chat_id,
+            text="下载超时了，可能链接有问题 🌸",
+        )
+    except asyncio.TimeoutError:
+        await bot.send_message(
+            chat_id=chat_id,
+            text="处理超时了，可能歌太长，再试一次 🌸",
+        )
+    except Exception as e:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"翻唱出错了：{str(e)[:80]} 🌸",
+        )
 
 
 def mp3_to_ogg(mp3_bytes: bytes) -> bytes:
@@ -980,6 +1048,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"[alarm queue error] {e}")
         except Exception as e:
             await update.message.reply_text(f"出错了：{e}")
+        return
+
+    # ── 翻唱触发 ─────────────────────────────────────────────────────────────
+    cover_url = extract_cover_url(text)
+    if cover_url and COVER_PATTERN.search(text):
+        await update.message.reply_text("好，让我来 ⏳")
+        asyncio.create_task(
+            process_cover(cover_url, config.RVC_DEFAULT_MODEL, chat_id, context.bot)
+        )
         return
 
     # ── 关键词搜索触发 ────────────────────────────────────────────────────────
