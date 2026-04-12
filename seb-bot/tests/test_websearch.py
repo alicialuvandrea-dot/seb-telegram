@@ -1,5 +1,6 @@
 import sys
 import os
+import httpx
 from unittest.mock import MagicMock
 
 # 用 mock config 阻止真实 config.py 被导入
@@ -7,6 +8,7 @@ mock_config = MagicMock()
 mock_config.TAVILY_API_KEY = "test-key"
 mock_config.SEARCH_MAX_RESULTS = 3
 mock_config.MAX_HISTORY = 20
+mock_config.MINIMAX_API_KEY = "test-minimax-key"
 sys.modules["config"] = mock_config
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -33,20 +35,32 @@ def test_extract_only_keyword():
 
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 
 @pytest.mark.asyncio
 async def test_web_search_formats_results():
-    mock_response = {
-        "results": [
-            {"title": "标题一", "url": "https://example.com/1", "content": "摘要内容一"},
-            {"title": "标题二", "url": "https://example.com/2", "content": "摘要内容二"},
+    """MiniMax 返回正常结果"""
+    mock_minimax_data = {
+        "organic": [
+            {"title": "标题一", "link": "https://example.com/1", "snippet": "摘要内容一"},
+            {"title": "标题二", "link": "https://example.com/2", "snippet": "摘要内容二"},
         ]
     }
-    with patch("bot.AsyncTavilyClient") as MockClient:
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json = lambda: mock_minimax_data
+
+    async def mock_post(*args, **kwargs):
+        return mock_resp
+
+    with patch("bot.httpx.AsyncClient") as MockClient:
         instance = MockClient.return_value
-        instance.search = AsyncMock(return_value=mock_response)
+        instance.__aenter__ = AsyncMock(return_value=instance)
+        instance.__aexit__ = AsyncMock(return_value=None)
+        instance.post = mock_post
         from bot import web_search
         result = await web_search("测试关键词")
 
@@ -59,9 +73,20 @@ async def test_web_search_formats_results():
 
 @pytest.mark.asyncio
 async def test_web_search_empty_results():
-    with patch("bot.AsyncTavilyClient") as MockClient:
+    """MiniMax 返回空结果"""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json = lambda: {"organic": []}
+
+    async def mock_post(*args, **kwargs):
+        return mock_resp
+
+    with patch("bot.httpx.AsyncClient") as MockClient:
         instance = MockClient.return_value
-        instance.search = AsyncMock(return_value={"results": []})
+        instance.__aenter__ = AsyncMock(return_value=instance)
+        instance.__aexit__ = AsyncMock(return_value=None)
+        instance.post = mock_post
         from bot import web_search
         result = await web_search("无结果查询")
 
