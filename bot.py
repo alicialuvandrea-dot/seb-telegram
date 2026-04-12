@@ -47,6 +47,22 @@ TECH_TOPIC_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+COVER_PATTERN = re.compile(
+    r"翻唱|帮我唱|你来唱|我想听你唱|唱一下|唱这首|"
+    r"cover|ai唱|用.*唱",
+    re.IGNORECASE,
+)
+
+COVER_URL_PATTERN = re.compile(
+    r"https?://(?:www\.)?(?:youtube\.com|youtu\.be|"
+    r"bilibili\.com|soundcloud\.com|music\.163\.com)\S+"
+)
+
+
+def extract_cover_url(text: str) -> str | None:
+    m = COVER_URL_PATTERN.search(text)
+    return m.group(0) if m else None
+
 # ── 模型配置 ──────────────────────────────────────────────────────────────────
 MODEL_CONFIG = {
     "label": "Claude Opus 4.6",
