@@ -1,7 +1,7 @@
 TELEGRAM_TOKEN  = "8727940934:AAGqyXxgmySKUSkmYZiESwZuai-JxS8z--Q"
-API_KEY         = "sk-i3Ec9RdP5xyWgRFK2rYTj8FgN7sJizxlFOnZ4FsJ2xJ3EeDv"
-API_BASE        = "https://api.dzzi.ai/v1"
-MODEL           = "[按次]claude-sonnet-4-6"
+API_KEY         = "sk-6e23d043d7a54acbbe3f9244c50d4c7a"
+API_BASE        = "https://api.deepseek.com/v1"
+MODEL           = "deepseek-v4-pro"
 
 SUPABASE_URL    = "https://yqfxcebqzqgzjcwffppr.supabase.co"
 SUPABASE_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZnhjZWJxenFnempjd2ZmcHByIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjgwNjkyNywiZXhwIjoyMDg4MzgyOTI3fQ.WNo0VR0xD2rwS9aMDg9SguZjSVV7_nVxwXAZQJrFV-Y"
