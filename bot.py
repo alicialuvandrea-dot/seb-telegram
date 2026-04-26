@@ -4,7 +4,7 @@ import random
 import sys
 import os
 import uuid
-import base64
+
 import asyncio
 import subprocess
 from datetime import datetime, date as _date, timedelta, timezone
@@ -1116,7 +1116,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo = update.message.photo[-1]
         tg_file = await context.bot.get_file(photo.file_id)
         photo_bytes = bytes(await tg_file.download_as_bytearray())
-        b64 = base64.b64encode(photo_bytes).decode()
 
         history_entry = {"role": "user", "content": f"[图片]{(' ' + caption) if caption else ''}"}
         memories = await fetch_memories()
@@ -1125,38 +1124,19 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filename, img_url = imghost_save(photo_bytes)
         try:
             try:
-                is_nsfw = await classify_nsfw(img_url)
+                description = await grok_describe(img_url, caption)
             except Exception as e:
-                print(f"[grok classify error] {e}")
-                is_nsfw = False
-
-            if not is_nsfw:
-                # 非 NSFW：Claude 直接看图，自然回复
-                api_content: list = []
-                if caption:
-                    api_content.append({"type": "text", "text": caption})
-                api_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
-                api_messages = (
-                    [{"role": "system", "content": system}]
-                    + histories[chat_id]
-                    + [{"role": "user", "content": api_content}]
-                )
-            else:
-                # NSFW：Grok 详细描述，Claude 根据描述回复
-                try:
-                    description = await grok_describe(img_url, caption)
-                except Exception as e:
-                    print(f"[grok describe error] {e}")
-                    description = "（图片描述获取失败）"
-                user_text = (
-                    f"{'她说：' + caption + '。' if caption else ''}"
-                    f"（图片内容：{description}）"
-                )
-                api_messages = (
-                    [{"role": "system", "content": system}]
-                    + histories[chat_id]
-                    + [{"role": "user", "content": user_text}]
-                )
+                print(f"[grok describe error] {e}")
+                description = "（图片描述获取失败）"
+            user_text = (
+                f"{'她说：' + caption + '。' if caption else ''}"
+                f"（图片内容：{description}）"
+            )
+            api_messages = (
+                [{"role": "system", "content": system}]
+                + histories[chat_id]
+                + [{"role": "user", "content": user_text}]
+            )
         finally:
             imghost_delete(filename)
 
