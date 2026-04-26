@@ -195,7 +195,9 @@ async def call_api(messages: list) -> str:
         data = res.json()
         if not res.is_success:
             raise Exception(data.get("error", {}).get("message", res.text))
-        return strip_thinking(data["choices"][0]["message"]["content"] or "")
+        content = data["choices"][0]["message"]["content"] or ""
+        content = content.replace("\\n", "\n")
+        return strip_thinking(content)
 
 
 async def transcribe_voice(ogg_bytes: bytes) -> str:
