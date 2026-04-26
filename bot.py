@@ -1208,8 +1208,9 @@ async def classify_nsfw(img_url: str) -> bool:
 
 
 async def grok_describe(img_url: str, caption: str) -> str:
-    """用 Grok 详细描述 NSFW 图片内容。"""
-    prompt = caption if caption else "请详细描述图片内容，包括人物、场景、动作、细节"
+    """用 Grok 描述图片内容，只描述客观可见内容。"""
+    base = "请客观描述这张图片中可见的内容。只描述你实际看到的，不要添加任何揣测、想象或额外描写。"
+    prompt = f"{base}\n她说：{caption}" if caption else base
     async with httpx.AsyncClient(timeout=60) as http:
         res = await http.post(
             f"{config.GROK_BASE}/chat/completions",
