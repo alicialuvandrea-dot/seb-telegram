@@ -1049,17 +1049,28 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                         await asyncio.sleep(0.5)
         else:
             reply = reply.replace("\\n", "\n").replace("\\r", "\r").replace("\r\n", "\n").replace("\r", "\n")
-            raw_paragraphs = re.split(r'\n\n+', reply)
-            paragraphs = [p.strip() for p in raw_paragraphs if p.strip()]
-            if not paragraphs:
-                paragraphs = [reply]
+            reply = reply.strip()
+            if not reply:
+                return
+
+            sentences = re.split(r'(?<=[。！？.!?])\s*', reply)
+            sentences = [s.strip() for s in sentences if s.strip()]
 
             all_chunks = []
-            for para in paragraphs:
-                if len(para) > 4000:
-                    all_chunks.extend(smart_split(para, 4000))
+            current = ""
+            for s in sentences:
+                if len(current) + len(s) > 4000 or len(s) > 4000:
+                    if current:
+                        all_chunks.append(current)
+                        current = ""
+                    if len(s) > 4000:
+                        all_chunks.extend(smart_split(s, 4000))
+                    else:
+                        current = s
                 else:
-                    all_chunks.append(para)
+                    current += s
+            if current:
+                all_chunks.append(current)
 
             for i, chunk in enumerate(all_chunks):
                 if i > 0:
