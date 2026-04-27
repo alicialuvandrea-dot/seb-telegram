@@ -914,8 +914,30 @@ emotion 可选值：happy / sad / neutral / fearful / disgusted / surprised / an
 
 
 # ── 语义切割 ───────────────────────────────────────────────────────────────
+def _safe_split_point(text: str, candidate: int) -> int:
+    """回退到不在未闭合 markdown 标签内部的安全切割点"""
+    prefix = text[:candidate]
+
+    if prefix.count('**') % 2 != 0:
+        last = prefix.rfind('**')
+        if last > candidate // 2:
+            candidate = last
+
+    if prefix.count('`') % 2 != 0:
+        last = prefix.rfind('`')
+        if last > candidate // 2:
+            candidate = last
+
+    if prefix.count('[') > prefix.count(']'):
+        last = prefix.rfind('[')
+        if last > candidate // 2:
+            candidate = last
+
+    return candidate
+
+
 def smart_split(text: str, max_len: int = 4000) -> list:
-    """按语义边界切割长文本：优先 \\n\\n → \\n → 句末标点 → 硬截断"""
+    """按语义边界切割长文本：优先 \\n\\n → \\n → 句末标点 → 硬截断，避开 markdown 标签"""
     text = text.strip()
     if len(text) <= max_len:
         return [text]
@@ -934,12 +956,33 @@ def smart_split(text: str, max_len: int = 4000) -> list:
         if split_at == -1 or split_at < max_len // 2:
             split_at = max_len
 
+        split_at = _safe_split_point(remaining, split_at)
+
         parts.append(remaining[:split_at + 1].strip())
         remaining = remaining[split_at + 1:].strip()
 
     if remaining:
         parts.append(remaining)
     return parts
+
+
+# ── 发送重试 ───────────────────────────────────────────────────────────────
+async def _send_with_retry(update: Update, text: str, parse_mode: str | None = None, max_retries: int = 3):
+    """429 / flood 自动退避重试，其他异常直接抛"""
+    for attempt in range(max_retries):
+        try:
+            if parse_mode:
+                return await update.message.reply_text(text, parse_mode=parse_mode)
+            else:
+                return await update.message.reply_text(text)
+        except Exception as e:
+            msg = str(e).lower()
+            if '429' in msg or 'flood' in msg or 'retry after' in msg:
+                wait = min(2 ** attempt * 5, 30)
+                print(f"[rate-limit] 429 hit, retry in {wait}s (attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(wait)
+                continue
+            raise
 
 
 # ── 公共发送逻辑 ───────────────────────────────────────────────────────────────
@@ -997,11 +1040,11 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
             try:
                 if len(html) > 4096:
                     raise ValueError("too long for single HTML send")
-                await update.message.reply_text(html, parse_mode="HTML")
+                await _send_with_retry(update, html, parse_mode="HTML")
             except Exception:
                 chunks = smart_split(reply, 4000)
                 for chunk in chunks:
-                    await update.message.reply_text(chunk)
+                    await _send_with_retry(update, chunk)
                     if len(chunks) > 1:
                         await asyncio.sleep(0.5)
         else:
@@ -1032,13 +1075,13 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
 
                 html_chunk = md_to_tg_html(chunk)
                 try:
-                    await update.message.reply_text(label + html_chunk, parse_mode="HTML")
+                    await _send_with_retry(update, label + html_chunk, parse_mode="HTML")
                 except Exception:
-                    await update.message.reply_text(label + chunk)
+                    await _send_with_retry(update, label + chunk)
 
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}")
-        await update.message.reply_text(f"出错了：{e}")
+        await _send_with_retry(update, f"出错了：{e}")
 
 
 # ── 消息处理 ───────────────────────────────────────────────────────────────────
