@@ -1061,23 +1061,17 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                 else:
                     all_chunks.append(para)
 
-            total = len(all_chunks)
             for i, chunk in enumerate(all_chunks):
                 if i > 0:
                     await asyncio.sleep(0.5)
                     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
                     await asyncio.sleep(0.3)
 
-                if total > 1:
-                    label = f"（{i + 1}/{total}）\n"
-                else:
-                    label = ""
-
                 html_chunk = md_to_tg_html(chunk)
                 try:
-                    await _send_with_retry(update, label + html_chunk, parse_mode="HTML")
+                    await _send_with_retry(update, html_chunk, parse_mode="HTML")
                 except Exception:
-                    await _send_with_retry(update, label + chunk)
+                    await _send_with_retry(update, chunk)
 
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}")
