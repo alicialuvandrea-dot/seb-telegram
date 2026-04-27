@@ -913,6 +913,35 @@ emotion 可选值：happy / sad / neutral / fearful / disgusted / surprised / an
     return prompt
 
 
+# ── 语义切割 ───────────────────────────────────────────────────────────────
+def smart_split(text: str, max_len: int = 4000) -> list:
+    """按语义边界切割长文本：优先 \\n\\n → \\n → 句末标点 → 硬截断"""
+    text = text.strip()
+    if len(text) <= max_len:
+        return [text]
+
+    parts = []
+    remaining = text
+    while len(remaining) > max_len:
+        split_at = remaining.rfind('\n\n', 0, max_len)
+        if split_at == -1:
+            split_at = remaining.rfind('\n', 0, max_len)
+        if split_at == -1:
+            for punct in ['。', '！', '？', '.', '!', '?']:
+                pos = remaining.rfind(punct, 0, max_len)
+                if pos > split_at:
+                    split_at = pos
+        if split_at == -1 or split_at < max_len // 2:
+            split_at = max_len
+
+        parts.append(remaining[:split_at + 1].strip())
+        remaining = remaining[split_at + 1:].strip()
+
+    if remaining:
+        parts.append(remaining)
+    return parts
+
+
 # ── 公共发送逻辑 ───────────────────────────────────────────────────────────────
 async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                    update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -967,32 +996,45 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
             html = md_to_tg_html(reply)
             try:
                 if len(html) > 4096:
-                    raise ValueError("message too long for single HTML send")
+                    raise ValueError("too long for single HTML send")
                 await update.message.reply_text(html, parse_mode="HTML")
             except Exception:
-                if len(reply) > 4096:
-                    for i in range(0, len(reply), 4096):
-                        await update.message.reply_text(reply[i:i + 4096])
-                else:
-                    await update.message.reply_text(reply)
+                chunks = smart_split(reply, 4000)
+                for chunk in chunks:
+                    await update.message.reply_text(chunk)
+                    if len(chunks) > 1:
+                        await asyncio.sleep(0.5)
         else:
-            # 兜底：确保所有换行表示都转成真正的 \n
             reply = reply.replace("\\n", "\n").replace("\\r", "\r").replace("\r\n", "\n").replace("\r", "\n")
-            paragraphs = [p.strip() for p in re.split(r'\n+', reply) if p.strip()]
+            raw_paragraphs = re.split(r'\n\n+', reply)
+            paragraphs = [p.strip() for p in raw_paragraphs if p.strip()]
             if not paragraphs:
                 paragraphs = [reply]
-            for i, para in enumerate(paragraphs):
+
+            all_chunks = []
+            for para in paragraphs:
+                if len(para) > 4000:
+                    all_chunks.extend(smart_split(para, 4000))
+                else:
+                    all_chunks.append(para)
+
+            total = len(all_chunks)
+            for i, chunk in enumerate(all_chunks):
                 if i > 0:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(0.5)
                     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-                    await asyncio.sleep(max(0.5, min(len(para) * 0.03, 2)))
-                if len(para) > 4096:
-                    para = para[:4096]
-                html_para = md_to_tg_html(para)
+                    await asyncio.sleep(0.3)
+
+                if total > 1:
+                    label = f"（{i + 1}/{total}）\n"
+                else:
+                    label = ""
+
+                html_chunk = md_to_tg_html(chunk)
                 try:
-                    await update.message.reply_text(html_para, parse_mode="HTML")
+                    await update.message.reply_text(label + html_chunk, parse_mode="HTML")
                 except Exception:
-                    await update.message.reply_text(para)
+                    await update.message.reply_text(label + chunk)
 
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}")
