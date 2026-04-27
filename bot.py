@@ -1055,34 +1055,20 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
 
             sentences = re.split(r'(?<=[。！？.!?])\s*', reply)
             sentences = [s.strip() for s in sentences if s.strip()]
+            if not sentences:
+                sentences = [reply]
 
-            all_chunks = []
-            current = ""
-            for s in sentences:
-                if len(current) + len(s) > 4000 or len(s) > 4000:
-                    if current:
-                        all_chunks.append(current)
-                        current = ""
-                    if len(s) > 4000:
-                        all_chunks.extend(smart_split(s, 4000))
-                    else:
-                        current = s
-                else:
-                    current += s
-            if current:
-                all_chunks.append(current)
-
-            for i, chunk in enumerate(all_chunks):
+            for i, sentence in enumerate(sentences):
                 if i > 0:
                     await asyncio.sleep(0.5)
                     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
                     await asyncio.sleep(0.3)
 
-                html_chunk = md_to_tg_html(chunk)
+                html_chunk = md_to_tg_html(sentence)
                 try:
                     await _send_with_retry(update, html_chunk, parse_mode="HTML")
                 except Exception:
-                    await _send_with_retry(update, chunk)
+                    await _send_with_retry(update, sentence)
 
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}")
