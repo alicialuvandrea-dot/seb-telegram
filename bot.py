@@ -950,6 +950,32 @@ emotion 可选值：happy / sad / neutral / fearful / disgusted / surprised / an
     return prompt
 
 
+# ── 物理切割 ───────────────────────────────────────────────────────────────
+def physical_split(text: str) -> list[str]:
+    """先按空行拆段，再按句末标点拆句，双重保障不漏大块。"""
+    # 归一化换行
+    text = text.replace("\\n", "\n").replace("\\r", "\r").replace("\r\n", "\n").replace("\r", "\n")
+    # 折叠连续空行
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = text.strip()
+    if not text:
+        return []
+
+    result = []
+    paragraphs = text.split('\n\n')
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+        # 按句末标点拆句
+        parts = re.split(r'(?<=[。！？.!?])\s*', para)
+        for part in parts:
+            part = part.strip()
+            if part:
+                result.append(part)
+    return result or [text.strip()]
+
+
 # ── 模拟打字 ───────────────────────────────────────────────────────────────
 def calc_delay(text: str) -> float:
     """根据字数计算模拟打字延迟（约 30 字/秒），底线 0.8s，上限 10s。"""
@@ -1105,15 +1131,13 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                     if len(chunks) > 1:
                         await asyncio.sleep(0.5)
         else:
-            reply = reply.replace("\\n", "\n").replace("\\r", "\r").replace("\r\n", "\n").replace("\r", "\n")
             reply = reply.strip()
             if not reply:
                 return
 
-            sentences = re.split(r'(?<=[。！？.!?])\s*', reply)
-            sentences = [s.strip() for s in sentences if s.strip()]
+            sentences = physical_split(reply)
             if not sentences:
-                sentences = [reply]
+                return
 
             for i, sentence in enumerate(sentences):
                 delay_pre = 0.6 if i == 0 else 0.4
