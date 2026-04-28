@@ -913,6 +913,22 @@ emotion 可选值：happy / sad / neutral / fearful / disgusted / surprised / an
     return prompt
 
 
+# ── 模拟打字 ───────────────────────────────────────────────────────────────
+def calc_delay(text: str) -> float:
+    """根据字数计算模拟打字延迟（约 30 字/秒），底线 0.8s，上限 10s。"""
+    return max(0.8, min(len(text) / 30, 10.0))
+
+
+async def simulate_typing(ctx, chat_id: int, delay: float) -> None:
+    """持续刷新 typing 指示器直到延迟走完（Telegram ~5s 后自动消失）。"""
+    elapsed = 0.0
+    while elapsed < delay:
+        await ctx.bot.send_chat_action(chat_id=chat_id, action="typing")
+        tick = min(4.0, delay - elapsed)
+        await asyncio.sleep(tick)
+        elapsed += tick
+
+
 # ── 语义切割 ───────────────────────────────────────────────────────────────
 def _safe_split_point(text: str, candidate: int) -> int:
     """回退到不在未闭合 markdown 标签内部的安全切割点"""
@@ -1060,10 +1076,7 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
 
             for i, sentence in enumerate(sentences):
                 if i > 0:
-                    # 模拟打字：间隔 = 句子长度 / 打字速度，1~4 秒
-                    typing_delay = max(1.0, min(len(sentence) / 12, 4.0))
-                    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-                    await asyncio.sleep(typing_delay)
+                    await simulate_typing(context, chat_id, calc_delay(sentence))
 
                 html_chunk = md_to_tg_html(sentence)
                 try:
