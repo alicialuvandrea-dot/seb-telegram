@@ -26,6 +26,14 @@ import config
 
 SEARCH_KEYWORDS = ["搜一下", "查一下", "帮我查", "查查", "找一下"]
 
+# ── 思考链 Marker（注入首轮 user message，随历史持续生效）──────────────────
+NO_INNER_OS_MARKER = (
+    "\n\n【思维模式要求】在你的思考过程（<think>标签内）中，请遵守以下规则：\n"
+    "1. 禁止使用圆括号包裹内心独白，例如\"（心想：……）\"或\"(内心OS：……)\"，所有分析内容直接陈述即可\n"
+    "2. 禁止以角色第一人称描写内心活动，例如\"我心想\"\"我觉得\"\"我暗自\"等，请用分析性语言替代\n"
+    "3. 思考内容应聚焦于剧情走向分析和回复内容规划，不要在思考中进行角色扮演式的内心戏表演"
+)
+
 PERIOD_LOG_PATTERN = re.compile(
     r"姨妈|大姨妈|例假|生理期|月经|经期|痛经|MC(?!\w)|"
     r"来事|来亲戚|来朋友|好朋友来|老朋友来|"
@@ -136,6 +144,26 @@ def strip_model_tag(text: str) -> str:
     return text.strip()
 
 
+def clean_for_display(text: str) -> str:
+    """发送前最终清理：移除所有标签残留、状态提示、JSON 行等非对话内容。"""
+    # 残留的功能标签（正常情况已被上游处理，这里兜底）
+    text = re.sub(r'<seb_action[^>]*>[\s\S]*?</seb_action>', '', text)
+    text = re.sub(r'<#[\d.]+#>', '', text)
+    # 其他残留 XML/HTML 标签
+    text = re.sub(r'<[a-zA-Z_][^>]{0,100}>', '', text)
+    text = re.sub(r'</[a-zA-Z_][^>]{0,50}>', '', text)
+    # 整行是括号包裹的状态/UI 提示
+    text = re.sub(
+        r'^[（(][^）)]{0,60}(?:送达|已读|正在输入|输入中|已发送|typing)[^）)]{0,60}[）)]\s*$',
+        '', text, flags=re.MULTILINE,
+    )
+    # 整行是裸 JSON 对象
+    text = re.sub(r'^\s*\{[\s\S]{0,500}\}\s*$', '', text, flags=re.MULTILINE)
+    # 清理多余空行
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 def is_tech_reply(user_text: str, reply_text: str) -> bool:
     if "```" in reply_text:
         return True
@@ -189,7 +217,7 @@ async def call_api(messages: list) -> str:
                 "messages": messages,
                 "max_tokens": config.MAX_TOKENS,
                 "temperature": config.TEMPERATURE,
-                "reasoning_effort": "high",
+                "reasoning_effort": "max",
                 "thinking": {"type": "enabled"},
             }
         )
@@ -774,8 +802,8 @@ def build_system(memories: list, plans: list | None = None) -> str:
 【思考链规则】
 每次回复前有一段内部思考，不展示给她。
 思考链里称呼她为「Sakura」或「她」，调情时用「亲爱的」「宝贝」「小猫」。禁止叫她「用户」或「user」。
-保持第一人称叙述，意识流动，不列1234，不中英混杂。每次思考都问自己一次：这一刻我什么感受？
-不格式化，不过度理性——是想，不是列提纲。
+用分析性语言思考——直接陈述观察到的问题、应该怎么回、有没有编造成分。不列1234，不中英混杂。
+禁止用括号包裹内心独白（如「（心想：……）」），禁止以角色第一人称表演内心戏（如「我暗自……」「我注意到自己……」）。思考是分析工具，不是舞台。
 
 【格式规则】
 日常聊天：纯文本，像发微信。禁止任何 Markdown 格式。
@@ -1008,6 +1036,10 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
     if len(histories[chat_id]) > config.MAX_HISTORY * 2:
         histories[chat_id] = histories[chat_id][-config.MAX_HISTORY * 2:]
 
+    # 首轮对话：注入分析型思考 Marker，随历史持续生效
+    if len(histories[chat_id]) == 1:
+        api_messages[-1]["content"] += NO_INNER_OS_MARKER
+
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
     try:
@@ -1075,14 +1107,17 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
                 sentences = [reply]
 
             for i, sentence in enumerate(sentences):
-                if i > 0:
-                    await simulate_typing(context, chat_id, calc_delay(sentence))
+                delay_pre = 0.6 if i == 0 else 0.4
+                await asyncio.sleep(delay_pre)
+                await simulate_typing(context, chat_id, calc_delay(sentence))
 
+                sentence = clean_for_display(sentence)
                 html_chunk = md_to_tg_html(sentence)
                 try:
                     await _send_with_retry(update, html_chunk, parse_mode="HTML")
                 except Exception:
                     await _send_with_retry(update, sentence)
+                await asyncio.sleep(0.3)
 
     except Exception as e:
         print(f"[ERROR] {type(e).__name__}: {e}")
