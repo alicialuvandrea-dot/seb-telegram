@@ -7,7 +7,7 @@ import json
 TELEGRAM_TOKEN  = os.environ.get("TELEGRAM_TOKEN", "8727940934:AAGqyXxgmySKUSkmYZiESwZuai-JxS8z--Q")
 API_KEY         = os.environ.get("API_KEY", "sk-3sFbSwuV7SDkdtOm806760E442F346FeA6Df259cFf5cF083")
 API_BASE        = os.environ.get("API_BASE", "https://aihubmix.com/v1")
-MODEL           = os.environ.get("MODEL", "claude-haiku-4-5")
+MODEL           = os.environ.get("MODEL", "claude-sonnet-4-6")
 
 SUPABASE_URL    = os.environ.get("SUPABASE_URL", "https://yqfxcebqzqgzjcwffppr.supabase.co")
 SUPABASE_KEY    = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZnhjZWJxenFnempjd2ZmcHByIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjgwNjkyNywiZXhwIjoyMDg4MzgyOTI3fQ.WNo0VR0xD2rwS9aMDg9SguZjSVV7_nVxwXAZQJrFV-Y")
