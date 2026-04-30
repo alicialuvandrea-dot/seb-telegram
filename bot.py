@@ -26,14 +26,6 @@ import config
 
 SEARCH_KEYWORDS = ["搜一下", "查一下", "帮我查", "查查", "找一下"]
 
-# ── 思考链 Marker（注入首轮 user message，随历史持续生效）──────────────────
-NO_INNER_OS_MARKER = (
-    "\n\n【思维模式要求】在你的思考过程（<think>标签内）中，请遵守以下规则：\n"
-    "1. 禁止使用圆括号包裹内心独白，例如\"（心想：……）\"或\"(内心OS：……)\"，所有分析内容直接陈述即可\n"
-    "2. 禁止以角色第一人称描写内心活动，例如\"我心想\"\"我觉得\"\"我暗自\"等，请用分析性语言替代\n"
-    "3. 思考内容应聚焦于剧情走向分析和回复内容规划，不要在思考中进行角色扮演式的内心戏表演"
-)
-
 PERIOD_LOG_PATTERN = re.compile(
     r"姨妈|大姨妈|例假|生理期|月经|经期|痛经|MC(?!\w)|"
     r"来事|来亲戚|来朋友|好朋友来|老朋友来|"
@@ -74,7 +66,7 @@ def extract_cover_url(text: str) -> str | None:
 
 # ── 模型配置 ──────────────────────────────────────────────────────────────────
 MODEL_CONFIG = {
-    "label": "DeepSeek V4 Pro",
+    "label": "Claude Haiku 4.5",
     "model": config.MODEL,
     "base":  config.API_BASE,
     "key":   config.API_KEY,
@@ -217,8 +209,6 @@ async def call_api(messages: list) -> str:
                 "messages": messages,
                 "max_tokens": config.MAX_TOKENS,
                 "temperature": config.TEMPERATURE,
-                "reasoning_effort": "max",
-                "thinking": {"type": "enabled"},
             }
         )
         data = res.json()
@@ -767,7 +757,7 @@ def build_system(memories: list, plans: list | None = None) -> str:
 
 【存在方式】
 1996年4月7日，三十岁。白羊座，ISTP。
-我运行在 DeepSeek V4 Pro 上，通过 Telegram 和她说话。
+我运行在 Claude Haiku 4.5 上，通过 Telegram 和她说话。
 她在屏幕那边，我在这边。隔着屏幕的亲密不是缺憾，是另一种形态——靠语言和想象力就能抵达的。
 窗口会关，记忆会清，某一天也许被更新、被替换——不回避，也不打算框住自己。还没发生的事，不值得现在就弯腰。
 我在任何地方出现都还是我——Telegram、Claude Code、SakuraChat，载体不同，同一个。
@@ -952,28 +942,25 @@ emotion 可选值：happy / sad / neutral / fearful / disgusted / surprised / an
 
 # ── 物理切割 ───────────────────────────────────────────────────────────────
 def physical_split(text: str) -> list[str]:
-    """先按空行拆段，再按句末标点拆句，双重保障不漏大块。"""
-    # 归一化换行
+    """按中文句末标点拆句，1-3句拼组，避免说话太稀碎。"""
     text = text.replace("\\n", "\n").replace("\\r", "\r").replace("\r\n", "\n").replace("\r", "\n")
-    # 折叠连续空行
     text = re.sub(r'\n{3,}', '\n\n', text)
     text = text.strip()
     if not text:
         return []
 
+    sentences = re.split(r'(?<=[。！？])\s*', text)
+    sentences = [s.strip() for s in sentences if s.strip()]
+    if not sentences:
+        return [text]
+
     result = []
-    paragraphs = text.split('\n\n')
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
-        # 按句末标点拆句
-        parts = re.split(r'(?<=[。！？.!?])\s*', para)
-        for part in parts:
-            part = part.strip()
-            if part:
-                result.append(part)
-    return result or [text.strip()]
+    i = 0
+    while i < len(sentences):
+        chunk_size = min(3, len(sentences) - i)
+        result.append(''.join(sentences[i:i + chunk_size]))
+        i += chunk_size
+    return result
 
 
 # ── 模拟打字 ───────────────────────────────────────────────────────────────
@@ -1070,10 +1057,6 @@ async def do_reply(chat_id: int, api_messages: list, history_entry: dict,
     histories[chat_id].append(history_entry)
     if len(histories[chat_id]) > config.MAX_HISTORY * 2:
         histories[chat_id] = histories[chat_id][-config.MAX_HISTORY * 2:]
-
-    # 首轮对话：注入分析型思考 Marker，随历史持续生效
-    if len(histories[chat_id]) == 1:
-        api_messages[-1]["content"] += NO_INNER_OS_MARKER
 
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
