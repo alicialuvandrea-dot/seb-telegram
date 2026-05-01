@@ -45,3 +45,5 @@ GROQ_STT_MODEL = os.environ.get("GROQ_STT_MODEL", "whisper-large-v3")
 
 RVC_SERVICE_URL    = os.environ.get("RVC_SERVICE_URL", "https://studio.sebsakura.top")
 RVC_DEFAULT_MODEL  = os.environ.get("RVC_DEFAULT_MODEL", "Sebastian")
+
+OBSIDIAN_MCP_URL  = os.environ.get("OBSIDIAN_MCP_URL", "http://localhost:3004/mcp")
