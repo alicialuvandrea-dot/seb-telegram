@@ -1679,10 +1679,9 @@ async def handle_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ── 主入口 ─────────────────────────────────────────────────────────────────────
 async def error_handler(update, context):
     if isinstance(context.error, Conflict):
-        print('[Conflict] another instance taking over, waiting 60s...')
-        await asyncio.sleep(60)
-        import os
-        os._exit(0)
+        print('[Conflict] another instance taking over, retrying in 30s...')
+        await asyncio.sleep(30)
+        return  # don't exit, let polling retry
     print(f'[Error] {context.error}')
 
 def main():
