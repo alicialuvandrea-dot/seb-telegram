@@ -342,37 +342,34 @@ histories: dict[int, list] = defaultdict(list)
 
 # ── Supabase ───────────────────────────────────────────────────────────────────
 async def fetch_memories() -> list:
-    async with httpx.AsyncClient() as http:
-        res = await http.get(
-            f"{config.SUPABASE_URL}/rest/v1/memories",
-            params={"order": "weight.desc,when.desc", "limit": str(config.MEMORIES_LIMIT), "select": "*"},
-            headers={"apikey": config.SUPABASE_KEY, "Authorization": f"Bearer {config.SUPABASE_KEY}"}
-        )
-        return res.json() if res.status_code == 200 else []
+    try:
+        return await sb_request("GET", "/memories", params={
+            "order": "weight.desc,when.desc",
+            "limit": str(config.MEMORIES_LIMIT),
+            "select": "*",
+        })
+    except Exception:
+        return []
 
 
 async def fetch_period_records() -> list:
-    async with httpx.AsyncClient() as http:
-        res = await http.get(
-            f"{config.SUPABASE_URL}/rest/v1/period_records",
-            params={"order": "date.asc", "select": "*"},
-            headers={"apikey": config.SUPABASE_KEY, "Authorization": f"Bearer {config.SUPABASE_KEY}"}
-        )
-        return res.json() if res.status_code == 200 else []
+    try:
+        return await sb_request("GET", "/period_records", params={
+            "order": "date.asc", "select": "*",
+        })
+    except Exception:
+        return []
 
 
 async def fetch_plans() -> list:
-    async with httpx.AsyncClient() as http:
-        res = await http.get(
-            f"{config.SUPABASE_URL}/rest/v1/plans",
-            params={
-                "status": "neq.done",
-                "order": "priority.desc,created_at.desc",
-                "select": "id,title,content,type,status,priority,deadline,parent_id",
-            },
-            headers={"apikey": config.SUPABASE_KEY, "Authorization": f"Bearer {config.SUPABASE_KEY}"}
-        )
-        return res.json() if res.status_code == 200 else []
+    try:
+        return await sb_request("GET", "/plans", params={
+            "status": "neq.done",
+            "order": "priority.desc,created_at.desc",
+            "select": "id,title,content,type,status,priority,deadline,parent_id",
+        })
+    except Exception:
+        return []
 
 
 def format_period_summary(records: list) -> str:
@@ -426,7 +423,7 @@ def format_period_summary(records: list) -> str:
     return "\n".join(lines)
 
 
-async def sb_request(method: str, path: str, body=None):
+async def sb_request(method: str, path: str, body=None, params: dict | None = None):
     url = f"{config.SUPABASE_URL}/rest/v1{path}"
     headers = {
         "apikey": config.SUPABASE_KEY,
@@ -435,7 +432,7 @@ async def sb_request(method: str, path: str, body=None):
         "Prefer": "return=representation" if method == "POST" else "",
     }
     async with httpx.AsyncClient() as http:
-        res = await http.request(method, url, headers=headers, json=body)
+        res = await http.request(method, url, headers=headers, json=body, params=params)
         if not res.is_success:
             raise Exception(res.text)
         return res.json() if res.text else None
@@ -454,7 +451,7 @@ async def exec_action(action_type: str, payload: dict, *, chat_id: int | None = 
             if existing and isinstance(existing, list) and len(existing) > 0:
                 print(f"[save_memory] 已有相似记忆，跳过：{existing[0].get('did', '')[:50]}")
                 return f"记忆已存在，跳过：{content[:40]}"
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         await sb_request("POST", "/memories", {
             "did": content,
             "who": payload.get("who", "Seb&Sakura"),
@@ -485,7 +482,7 @@ async def exec_action(action_type: str, payload: dict, *, chat_id: int | None = 
         return f"已删除 id={payload.get('id')}"
 
     elif action_type == "save_idea":
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         await sb_request("POST", "/ideas", {
             "content": payload.get("content", ""),
             "category": payload.get("category", ""),
