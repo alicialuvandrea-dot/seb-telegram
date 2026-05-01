@@ -4,7 +4,7 @@ import json
 # config.py — Seb Bot 配置
 # 支持通过环境变量覆盖（Docker 部署用），不设环境变量时回退到文件默认值
 
-TELEGRAM_TOKEN  = os.environ.get("TELEGRAM_TOKEN", "8727940934:AAGqyXxgmySKUSkmYZiESwZuai-JxS8z--Q")
+TELEGRAM_TOKEN  = os.environ.get("TELEGRAM_TOKEN", "8527488405:AAH51kqO_ktJ5LNLkPJvDABkV_a2Qrs_Ctk")
 API_KEY         = os.environ.get("API_KEY", "sk-3sFbSwuV7SDkdtOm806760E442F346FeA6Df259cFf5cF083")
 API_BASE        = os.environ.get("API_BASE", "https://aihubmix.com/v1")
 MODEL           = os.environ.get("MODEL", "claude-sonnet-4-6")
